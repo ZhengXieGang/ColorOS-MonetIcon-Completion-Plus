@@ -44,7 +44,6 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.VERSION_TAG }}
           name: "Icon Update ${{ steps.version.outputs.VERSION_TAG }}"
-          body: "追加适配 ${{ steps.version.outputs.ICON_COUNT }} 个图标。"
           files: uxicons.zip
           prerelease: true # 标记为 Pre-release
         env:
