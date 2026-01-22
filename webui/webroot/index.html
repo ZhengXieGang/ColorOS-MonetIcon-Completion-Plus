@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>图标适配增强 Plus</title>
+    <style>
+        /* --- MD3 风格定义 --- */
+        :root {
+            --md-sys-color-primary: #D0BCFF;
+            --md-sys-color-on-primary: #381E72;
+            --md-sys-color-primary-container: #4F378B;
+            --md-sys-color-on-primary-container: #EADDFF;
+            --md-sys-color-background: #141218;
+            --md-sys-color-on-background: #E6E1E5;
+            --md-sys-color-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #49454F;
+            --md-sys-color-on-surface-variant: #CAC4D0;
+            --md-sys-color-outline: #938F99;
+            --md-sys-color-success: #4caf50;
+            --md-sys-color-error: #ffb4ab;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--md-sys-color-background);
+            color: var(--md-sys-color-on-background);
+            font-family: 'Roboto', sans-serif;
+            padding-top: calc(env(safe-area-inset-top) + 60px);
+            padding-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container { width: 92%; max-width: 600px; }
+
+        .header { margin-bottom: 24px; padding-left: 12px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
+        .header p { margin: 6px 0 0; color: var(--md-sys-color-on-surface-variant); font-size: 14px; }
+
+        .card {
+            background-color: var(--md-sys-color-surface);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+
+        .version-row { display: flex; justify-content: space-between; margin-bottom: 20px; text-align: center; }
+        .v-box { flex: 1; }
+        .v-label { font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 4px; }
+        .v-num { font-size: 24px; font-weight: bold; color: var(--md-sys-color-primary); }
+        .v-num.local { color: var(--md-sys-color-on-surface); }
+
+        .progress-container { width: 100%; background-color: var(--md-sys-color-surface-variant); border-radius: 10px; height: 6px; margin: 20px 0; overflow: hidden; display: none; }
+        .progress-bar { height: 100%; background-color: var(--md-sys-color-primary); width: 0%; transition: width 0.3s ease; }
+
+        .btn {
+            display: flex; align-items: center; justify-content: center; width: 100%; padding: 14px;
+            border-radius: 100px; border: none; font-size: 16px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s; margin-bottom: 12px;
+        }
+        .btn:active { opacity: 0.8; transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+        .btn-tonal { background-color: var(--md-sys-color-surface-variant); color: var(--md-sys-color-on-surface-variant); }
+
+        .setting-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .setting-label { font-size: 14px; color: var(--md-sys-color-on-surface); }
+        .setting-sub { font-size: 11px; color: var(--md-sys-color-outline); display: block; margin-top: 2px;}
+
+        .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--md-sys-color-surface-variant); transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: var(--md-sys-color-outline); transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--md-sys-color-primary); }
+        input:checked + .slider:before { transform: translateX(20px); background-color: var(--md-sys-color-on-primary); }
+
+        .log-box {
+            background-color: #000; border-radius: 12px; padding: 12px; height: 120px; overflow-y: auto;
+            font-family: 'Courier New', monospace; font-size: 11px; color: #0f0;
+            border: 1px solid var(--md-sys-color-surface-variant); white-space: pre-wrap; margin-top: 10px;
+        }
+        .info-text { font-size: 12px; color: var(--md-sys-color-outline); margin-top: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>图标适配增强 Plus</h1>
+            <p>Monet Icon Completion Manager</p>
+        </div>
+
+        <div class="card">
+            <div class="version-row">
+                <div class="v-box">
+                    <div class="v-label">本地版本</div>
+                    <div id="local-version" class="v-num local">--</div>
+                </div>
+                <div class="v-box">
+                    <div class="v-label">云端最新</div>
+                    <div id="cloud-version" class="v-num">检测中...</div>
+                </div>
+            </div>
+
+            <div id="extra-info" class="info-text">正在连接 GitHub API...</div>
+
+            <div class="progress-container" id="progress-wrap">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="startUpdate()" id="update-btn" disabled>
+                等待检测...
+            </button>
+
+            <div class="log-box" id="log-console">System Ready.</div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-top:0; font-size:16px; margin-bottom:10px;">下载设置 & 缓存</h3>
+            
+            <div class="setting-item">
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <div>
+                        <span class="setting-label">使用加速镜像 (KKGitHub)</span>
+                        <span class="setting-sub">开启后使用 kkgithub.com 进行下载加速</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="mirror-switch">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div>
+                    <span class="setting-label">下载缓存占用</span>
+                    <span class="setting-sub">/data/adb/uxicons_cache_tmp/</span>
+                </div>
+                <span id="tmp-cache-size" style="color:var(--md-sys-color-primary); font-weight:bold;">计算中...</span>
+            </div>
+
+            <div style="margin-top:16px;">
+                 <button class="btn btn-tonal" onclick="clearTmpCache()">
+                    清理残留下载文件
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心配置 ---
+        const MOD_ROOT = "/data/adb/modules/ThemedIconCompletion";
+        const WEB_ROOT = `${MOD_ROOT}/webroot`;
+        const CACHE_ROOT = "/data/adb/uxicons_cache_tmp"; 
+        const UPDATE_SCRIPT = `${MOD_ROOT}/update.sh`; 
+        const VERSION_FILE = `${WEB_ROOT}/version`; 
+        
+        // 【修正】这里的变量虽然 JS 实际上不直接用它来移动文件了，但保持与脚本一致是个好习惯
+        const TARGET_B = `${MOD_ROOT}/my_product/media/theme/uxicons/hdpi/`;
+
+        let currentCloudVersion = null;
+        let currentLocalVersion = null;
+        let originalDownloadUrl = "";
+
+        // --- 工具 ---
+        function log(msg, type = 'info') {
+            const consoleBox = document.getElementById('log-console');
+            const time = new Date().toLocaleTimeString('en-GB');
+            let color = type === 'error' ? '#ff5252' : (type === 'warn' ? '#ffeb3b' : '#0f0');
+            consoleBox.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        function setProgress(percent) {
+            const bar = document.getElementById('progress-bar');
+            document.getElementById('progress-wrap').style.display = 'block';
+            setTimeout(() => { bar.style.width = percent + '%'; }, 50);
+        }
+
+        async function exec(cmd) {
+            if (typeof ksu === 'undefined') return { errno: 999, stderr: "Root Interface Missing" };
+            try {
+                let res = await ksu.exec(cmd);
+                if (res === undefined && ksu.fullExec) res = await ksu.fullExec(cmd);
+                if (res === undefined) return { errno: 1, stderr: "No response" };
+                if (typeof res === 'string') return { errno: 0, stdout: res };
+                if (res.errno === undefined) res.errno = res.stdout ? 0 : 1;
+                return res;
+            } catch (e) { return { errno: 998, stderr: e.message }; }
+        }
+
+        // --- 业务逻辑 ---
+        async function initData() {
+            await exec(`chmod +x "${UPDATE_SCRIPT}"`);
+            
+            // 本地版本
+            const localRes = await exec(`cat "${VERSION_FILE}"`);
+            if (localRes.errno === 0 && localRes.stdout.trim()) {
+                currentLocalVersion = localRes.stdout.trim();
+                document.getElementById('local-version').innerText = currentLocalVersion;
+            } else {
+                document.getElementById('local-version').innerText = "未安装";
+            }
+
+            // 云端版本检测
+            try {
+                const response = await fetch("https://api.github.com/repos/ZhengXieGang/ColorOS-MonetIcon-Completion-Plus/releases");
+                const releases = await response.json();
+                
+                // 查找 v0. 开头的版本
+                const latest = releases.find(r => r.tag_name.startsWith("v0."));
+                
+                if (!latest) throw new Error("未找到符合 v0.x 规则的 Release");
+
+                currentCloudVersion = latest.tag_name;
+                document.getElementById('cloud-version').innerText = currentCloudVersion;
+                
+                // 去零: v0.0058 -> 58
+                const match = currentCloudVersion.match(/(\d+)$/);
+                const countStr = match ? match[1] : '0';
+                const countInt = parseInt(countStr, 10);
+                
+                document.getElementById('extra-info').innerText = `已追加适配 ${countInt} 个图标`;
+
+                const asset = latest.assets.find(a => a.name === "uxicons.zip");
+                if (asset) {
+                    originalDownloadUrl = asset.browser_download_url;
+                    updateButtonState();
+                } else {
+                     log("错误: 该版本未包含 uxicons.zip", 'error');
+                }
+            } catch (e) {
+                log("API 连接失败: " + e.message, 'error');
+                document.getElementById('cloud-version').innerText = "离线";
+            }
+            
+            refreshTmpCacheSize();
+        }
+
+        function updateButtonState() {
+            const btn = document.getElementById('update-btn');
+            btn.disabled = false;
+            btn.innerText = (currentLocalVersion === currentCloudVersion) ? "再次更新" : "立即更新";
+            btn.className = (currentLocalVersion === currentCloudVersion) ? "btn btn-tonal" : "btn btn-primary";
+        }
+
+        async function startUpdate() {
+            if (!originalDownloadUrl) return;
+            const btn = document.getElementById('update-btn');
+            const useMirror = document.getElementById('mirror-switch').checked;
+            
+            btn.disabled = true;
+            btn.innerText = "下载中...";
+            
+            // KKGitHub 逻辑
+            let finalUrl = originalDownloadUrl;
+            if (useMirror) {
+                finalUrl = originalDownloadUrl.replace("https://github.com", "https://kkgithub.com");
+                log("已启用加速: kkgithub.com");
+            } else {
+                log("模式: GitHub 直连");
+            }
+
+            try {
+                setProgress(10);
+                log("=== 步骤 1: 准备环境 ===");
+                
+                await exec(`rm -rf "${CACHE_ROOT}"`);
+                await exec(`mkdir -p "${CACHE_ROOT}"`);
+
+                log("=== 步骤 2: 下载文件 ===");
+                const curlCmd = `curl -L -k -4 --connect-timeout 20 --retry 2 -H "User-Agent: Mozilla/5.0" -o "${CACHE_ROOT}/uxicons.zip" "${finalUrl}"`;
+                const dlRes = await exec(curlCmd);
+                
+                const sizeCheck = await exec(`wc -c < "${CACHE_ROOT}/uxicons.zip"`);
+                const fileSize = parseInt(sizeCheck.stdout.trim()) || 0;
+                
+                if (fileSize < 1000) {
+                    throw new Error(`下载异常 (大小 ${fileSize}B)`);
+                }
+                log(`下载成功 (大小: ${Math.round(fileSize/1024)}KB)`);
+                refreshTmpCacheSize(); 
+                setProgress(50);
+
+                log("=== 步骤 3: 调用安装脚本 ===");
+                btn.innerText = "正在安装...";
+                
+                const scriptCmd = `sh "${UPDATE_SCRIPT}" "${currentCloudVersion}"`;
+                const scriptRes = await exec(scriptCmd);
+
+                log(scriptRes.stdout);
+                
+                if (scriptRes.errno !== 0 && !scriptRes.stdout.includes("Success")) {
+                   throw new Error("安装脚本报错，请看上方日志");
+                }
+
+                setProgress(100);
+                currentLocalVersion = currentCloudVersion;
+                document.getElementById('local-version').innerText = currentLocalVersion;
+                refreshTmpCacheSize();
+                
+                log("=== 全部完成 ===", 'success');
+                btn.innerText = "更新成功";
+                btn.style.backgroundColor = "var(--md-sys-color-success)";
+
+                setTimeout(() => updateButtonState(), 3000);
+
+            } catch (e) {
+                log(e.message, 'error');
+                btn.innerText = "重试";
+                btn.style.backgroundColor = "var(--md-sys-color-error)";
+                btn.disabled = false;
+                setProgress(0);
+                refreshTmpCacheSize();
+            }
+        }
+        
+        async function refreshTmpCacheSize() {
+            const res = await exec(`du -sh "${CACHE_ROOT}" 2>/dev/null | cut -f1`);
+            let size = (res.stdout || "").trim();
+            // 忽略 Linux 空目录占用 (4.0K)
+            if (size === "4.0K" || size === "3.5K" || !size) {
+                size = "0B"; 
+            }
+            document.getElementById('tmp-cache-size').innerText = size;
+        }
+
+        async function clearTmpCache() {
+            await exec(`rm -rf "${CACHE_ROOT}"`);
+            await refreshTmpCacheSize();
+            log("临时下载缓存已清理。", 'success');
+            if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("缓存清理完成");
+        }
+
+        window.onload = initData;
+    </script>
+</body>
+</html>
