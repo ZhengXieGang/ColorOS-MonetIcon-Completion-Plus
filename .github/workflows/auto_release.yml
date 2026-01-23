@@ -106,3 +106,30 @@ jobs:
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update packages.txt
+        run: |
+          # 列出 uxicons 下的文件夹名称，排序并去重
+          if [ -d "uxicons" ]; then
+            # find -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | uniq > packages.txt
+            # 使用 ls -1 更简单
+            ls -1 -d uxicons/*/ | xargs -n 1 basename | sort | uniq > packages.txt
+          else
+            echo "uxicons dir missing, clearing packages.txt"
+            > packages.txt
+          fi
+          
+          # 检查是否有变动
+          if git diff --quiet packages.txt; then
+            echo "packages.txt is up to date"
+          else
+            echo "Updating packages.txt..."
+            # 配置 Git
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # 提交并推送
+            git add packages.txt
+            git commit -m "chore: auto update packages.txt list"
+            git push
+          fi

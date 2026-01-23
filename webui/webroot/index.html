@@ -504,6 +504,61 @@
             opacity: 0.8;
             transform: scale(0.95);
         }
+
+        /* Floating Save Button */
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border-radius: 16px;
+            padding: 16px 24px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 900;
+            transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), opacity 0.3s;
+            transform: translateY(100px);
+            /* Hidden by default */
+            border: none;
+        }
+
+        .fab.visible {
+            transform: translateY(0);
+        }
+
+        .checkbox-wrapper {
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Custom Checkbox */
+        .custom-check {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--md-sys-color-outline);
+            border-radius: 4px;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .selected .custom-check {
+            background-color: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+        }
+
+        .selected .custom-check::after {
+            content: '✔';
+            color: var(--md-sys-color-on-primary);
+            font-size: 14px;
+        }
     </style>
 </head>
 
@@ -658,10 +713,15 @@
 
         // 【修正】这里的变量虽然 JS 实际上不直接用它来移动文件了，但保持与脚本一致是个好习惯
         const TARGET_B = `${MOD_ROOT}/my_product/media/theme/uxicons/hdpi/`;
+        const PKG_LIST_FILE = `${WEB_ROOT}/pkglist`;
 
         let currentCloudVersion = null;
         let currentLocalVersion = null;
-        let downloadAssets = {}; // 存储 url
+        let downloadAssets = {};
+        let currentPkgList = new Set(); // Store checked packages
+        let scannedApps = []; // Store scan results
+
+
 
         // --- 工具 ---
 
@@ -1107,207 +1167,179 @@
         }
 
         // 替代原来的 displayAppList，改名为 loadScanResults 并调用 displayAppList
-        async function loadScanResults() {
-            // 读取扫描结果，把换行转为逗号
-            const appsRes = await exec(`cat "${MONET_APPS_FILE}" | tr '\\n' ','`);
+        // New Logic for Icon Manager
 
-            // 即使没有结果，如果文件存在也作为结果处理（可能是真的没有支持的应用）
-            if (appsRes.errno !== 0) {
-                document.getElementById('scan-status').innerHTML = `
-                    <p>读取结果失败</p>
-                    <button class="btn btn-tonal" onclick="openIconManager()">重试</button>
-                `;
-                return;
-            }
+        async function openIconManager() {
+            document.querySelector('.container').style.display = 'none';
+            document.getElementById('icon-manager-view').style.display = 'block';
 
-            // 解析逻辑：用逗号分割
-            monetApps = appsRes.stdout.split(',').map(line => line.trim()).filter(line => line.length > 0);
+            // Show loading
+            document.getElementById('scan-status').style.display = 'block';
+            document.getElementById('app-list-container').style.display = 'none';
 
-            displayAppList();
-        }
+            // Start scan script
+            let cmd = `sh "${MOD_ROOT}/scan_monet.sh" > "${SCAN_LOG}" 2>&1 &`;
+            await exec(cmd);
 
-        async function displayAppList() {
-            document.getElementById('scan-status').style.display = 'none';
-            document.getElementById('app-list-container').style.display = 'block';
-            document.getElementById('app-count').innerText = monetApps.length;
-
-            const appListDiv = document.getElementById('app-list');
-            appListDiv.innerHTML = '';
-
-            if (monetApps.length === 0) {
-                appListDiv.innerHTML = `
-                    <div style="text-align:center; padding:40px 0; color:var(--md-sys-color-outline);">
-                        未找到支持的应用
-                    </div>
-                 `;
-                return;
-            }
-
-            // 先快速显示所有卡片（仅显示包名，无图标）
-            monetApps.forEach(pkg => {
-                const appItem = document.createElement('div');
-                appItem.className = 'app-item';
-                appItem.id = `item-${pkg.replace(/\./g, '_')}`;
-                appItem.onclick = () => restoreSingleIcon(pkg, pkg);
-
-                appItem.innerHTML = `
-                    <div class="app-info">
-                        <div class="app-name" id="name-${pkg.replace(/\./g, '_')}" style="font-size:16px;">加载中...</div>
-                        <div class="app-package" style="margin-top:2px;">${pkg}</div>
-                    </div>
-                `;
-                appListDiv.appendChild(appItem);
-            });
-
-            // 后台异步获取应用名称
-            updateAppLabels();
-        }
-
-        async function updateAppLabels() {
-            for (const pkg of monetApps) {
-                let appName = pkg;
-                try {
-                    // 1. 尝试 $packageManager
-                    if (typeof $packageManager !== 'undefined') {
-                        const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
-                        if (appInfo) appName = appInfo.getLabel().toString();
-                    }
-                    // 2. 尝试 KSU API
-                    else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
-                        const info = await ksu.getPackagesInfo(pkg);
-                        if (info && info.appLabel) appName = info.appLabel;
-                    }
-                } catch (e) { }
-
-                // Update DOM
-                const safeId = pkg.replace(/\./g, '_');
-                const nameEl = document.getElementById(`name-${safeId}`);
-                const itemEl = document.getElementById(`item-${safeId}`);
-                if (nameEl) nameEl.innerText = appName;
-                if (itemEl) itemEl.onclick = () => restoreSingleIcon(pkg, appName);
-
-                continue;
-                // Original logic skipped
-
-                try {
-                    // 获取应用名称（使用 dumpsys）
-                    const labelCmd = `dumpsys package ${pkg} | grep -m 1 "labelRes" -A 5 | grep "applicationLabel" | head -n 1`;
-                    const labelRes = await exec(labelCmd);
-
-                    let appName = pkg;
-                    if (labelRes.stdout && labelRes.stdout.trim()) {
-                        const nameMatch = labelRes.stdout.match(/applicationLabel=([^\n]+)/);
-                        if (nameMatch && nameMatch[1]) {
-                            appName = nameMatch[1].trim();
-                        }
-                    }
-
-                    // 更新 DOM
-                    const safeId = pkg.replace(/\./g, '_');
-                    const nameEl = document.getElementById(`name-${safeId}`);
-                    const itemEl = document.getElementById(`item-${safeId}`);
-
-                    if (nameEl) nameEl.innerText = appName;
-                    if (itemEl) itemEl.onclick = () => restoreSingleIcon(pkg, appName);
-                } catch (e) {
-                    console.log(`获取名称失败 ${pkg}:`, e);
-                    const safeId = pkg.replace(/\./g, '_');
-                    const nameEl = document.getElementById(`name-${safeId}`);
-                    if (nameEl && nameEl.innerText === "加载中...") {
-                        nameEl.innerText = pkg;
-                    }
-                }
-            }
-        }
-
-
-
-        async function backToMain() {
-            // 停止扫描计时器
-            isScanning = false;
+            isScanning = true;
             if (scanTimer) clearInterval(scanTimer);
 
-            // 终止可能存在的扫描进程
-            await exec(`pkill -f "scan_monet.sh"`);
+            // Load saved selection first
+            await loadPkgList();
 
-            // 删除结果文件（响应用户需求：如果用户点了返回...删除moneticon_apps文件）
-            await exec(`rm -f "${MONET_APPS_FILE}"`);
-
-            document.getElementById('icon-manager-view').style.display = 'none';
-            document.querySelector('.container').style.display = 'block';
-        }
-
-        async function restoreSingleIcon(pkg, appName) {
-            showDialog(
-                "恢复莫奈图标",
-                `是否恢复该应用自带的莫奈图标?<br><br><strong>${appName}</strong><br><span style="font-size:11px; color:var(--md-sys-color-outline);">${pkg}</span>`,
-                true,
-                async () => {
-                    try {
-                        // 写入要删除的包名到临时文件
-                        await exec(`echo "${pkg}" > "${DELETE_LIST_FILE}"`);
-
-                        // 赋予清理脚本执行权限
-                        await exec(`chmod +x "${CLEAN_SCRIPT}"`);
-
-                        // 执行清理脚本
-                        const cleanRes = await exec(`sh "${CLEAN_SCRIPT}"`);
-
-                        if (typeof ksu !== 'undefined' && ksu.toast) {
-                            ksu.toast("恢复成功: " + appName);
-                        }
-
-                        // 从列表中移除
-                        monetApps = monetApps.filter(p => p !== pkg);
-                        await displayAppList();
-
-                    } catch (e) {
-                        if (typeof ksu !== 'undefined' && ksu.toast) {
-                            ksu.toast("恢复失败: " + e.message);
+            scanTimer = setInterval(async () => {
+                if (!isScanning) return;
+                try {
+                    const res = await exec(`tail -n 1 "${SCAN_LOG}"`);
+                    if (res.errno === 0) {
+                        const line = res.stdout.trim();
+                        if (line === "DONE") {
+                            clearInterval(scanTimer);
+                            isScanning = false;
+                            finishScan();
                         }
                     }
-                }
-            );
+                } catch (e) { }
+            }, 500);
         }
 
-        async function restoreAllIcons() {
-            if (monetApps.length === 0) {
-                if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("没有可恢复的应用");
-                return;
+        async function finishScan() {
+            // Read result file
+            const res = await exec(`cat "${MONET_APPS_FILE}"`);
+            scannedApps = [];
+
+            if (res.errno === 0 && res.stdout) {
+                // Format: Label|Pkg|IconBase64
+                // Need to parse line by line
+                const lines = res.stdout.split('\n');
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const parts = line.split('|');
+                    if (parts.length >= 3) {
+                        scannedApps.push({
+                            label: parts[0],
+                            pkg: parts[1],
+                            icon: parts[2]
+                        });
+                    }
+                }
             }
 
-            showDialog(
-                "一键恢复",
-                `确定要恢复所有 ${monetApps.length} 个应用的莫奈图标吗？<br><br>此操作将删除这些应用的自定义图标覆盖。`,
-                true,
-                async () => {
-                    try {
-                        // 写入所有包名到删除列表
-                        const allPkgs = monetApps.join('\n');
-                        await exec(`echo "${allPkgs}" > "${DELETE_LIST_FILE}"`);
+            document.getElementById('scan-status').style.display = 'none';
+            const listContainer = document.getElementById('app-list-container');
+            listContainer.style.display = 'block';
+            document.getElementById('app-count').innerText = scannedApps.length;
 
-                        // 赋予清理脚本执行权限
-                        await exec(`chmod +x "${CLEAN_SCRIPT}"`);
-
-                        // 执行清理脚本
-                        const cleanRes = await exec(`sh "${CLEAN_SCRIPT}"`);
-
-                        if (typeof ksu !== 'undefined' && ksu.toast) {
-                            ksu.toast(`已恢复 ${monetApps.length} 个应用的图标`);
-                        }
-
-                        // 清空列表
-                        monetApps = [];
-                        await displayAppList();
-
-                    } catch (e) {
-                        if (typeof ksu !== 'undefined' && ksu.toast) {
-                            ksu.toast("批量恢复失败: " + e.message);
-                        }
-                    }
-                }
-            );
+            renderAppList();
         }
+
+        async function loadPkgList() {
+            const res = await exec(`cat "${PKG_LIST_FILE}"`);
+            currentPkgList.clear();
+            if (res.errno === 0 && res.stdout) {
+                const lines = res.stdout.split('\n');
+                lines.forEach(line => {
+                    const trimmed = line.trim();
+                    if (trimmed) currentPkgList.add(trimmed);
+                });
+            }
+        }
+
+        async function savePkgList() {
+            const fab = document.getElementById('save-fab');
+
+            log("正在保存配置...", 'info');
+
+            // Clear file
+            await exec(`echo -n "" > "${PKG_LIST_FILE}"`);
+
+            // Write each package
+            for (const pkg of currentPkgList) {
+                await exec(`echo "${pkg}" >> "${PKG_LIST_FILE}"`);
+            }
+
+            fab.classList.remove('visible');
+            setTimeout(() => {
+                fab.style.transform = 'translateY(100px)';
+            }, 300);
+
+            log("配置已保存", 'success');
+        }
+
+        function renderAppList() {
+            const container = document.getElementById('app-list');
+            container.innerHTML = "";
+
+            scannedApps.forEach(app => {
+                const isChecked = currentPkgList.has(app.pkg);
+                const item = document.createElement('div');
+                item.className = `app-item ${isChecked ? 'selected' : ''}`;
+                // Clicking anywhere toggles selection
+                item.onclick = (e) => toggleAppSelection(app.pkg, item);
+
+                const iconBase = `data:image/png;base64,${app.icon}`;
+
+                item.innerHTML = `
+                    <div class="checkbox-wrapper">
+                        <div class="custom-check"></div>
+                    </div>
+                    <div class="app-icon">
+                        <img src="${iconBase}">
+                    </div>
+                    <div class="app-info">
+                        <div class="app-name">${app.label}</div>
+                        <div class="app-package">${app.pkg}</div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+            updateSelectAllButtonState();
+        }
+
+        function toggleAppSelection(pkg, itemElement) {
+            if (currentPkgList.has(pkg)) {
+                currentPkgList.delete(pkg);
+                itemElement.classList.remove('selected');
+            } else {
+                currentPkgList.add(pkg);
+                itemElement.classList.add('selected');
+            }
+            showSaveFab();
+            updateSelectAllButtonState();
+        }
+
+        function showSaveFab() {
+            const fab = document.getElementById('save-fab');
+            fab.style.display = 'flex';
+            void fab.offsetWidth; // trigger reflow
+            fab.classList.add('visible');
+        }
+
+        function updateSelectAllButtonState() {
+            const allSelected = scannedApps.length > 0 && scannedApps.every(app => currentPkgList.has(app.pkg));
+            const btnText = document.getElementById('toggle-all-text');
+            if (btnText) {
+                btnText.innerText = allSelected ? "取消全选" : "全选";
+            }
+        }
+
+        function toggleSelectAll() {
+            const allSelected = scannedApps.length > 0 && scannedApps.every(app => currentPkgList.has(app.pkg));
+
+            if (allSelected) {
+                scannedApps.forEach(app => currentPkgList.delete(app.pkg));
+            } else {
+                scannedApps.forEach(app => currentPkgList.add(app.pkg));
+            }
+            renderAppList();
+            showSaveFab();
+        }
+
+
+        function restoreSingleIcon(pkg, appName) {
+            // Deprecated in favor of checkbox logic
+        }
+
 
         function showDialog(title, content, showCancel, onConfirm) {
             const overlay = document.createElement('div');

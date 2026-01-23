@@ -61,6 +61,27 @@ mkdir -p "$TARGET_B"
 cp -rf "$CACHE_DIR/uxicons/"* "$TARGET_A"
 cp -rf "$CACHE_DIR/uxicons/"* "$TARGET_B"
 
+echo ">>> 检查图标屏蔽列表..."
+PKG_LIST="$WEB_ROOT/pkglist"
+if [ -f "$PKG_LIST" ]; then
+    count=0
+    # Read line by line; handle missing newline at EOF
+    while IFS= read -r pkg || [ -n "$pkg" ]; do
+        # Trim whitespace
+        pkg=$(echo "$pkg" | xargs)
+        if [ ! -z "$pkg" ]; then
+            # Delete from Target A
+            rm -rf "$TARGET_A/$pkg"
+            # Delete from Target B
+            rm -rf "$TARGET_B/$pkg"
+            count=$((count + 1))
+        fi
+    done < "$PKG_LIST"
+    echo "已清理 $count 个被屏蔽的图标"
+else
+    echo "无屏蔽列表 (pkglist)"
+fi
+
 echo ">>> 更新版本信息..."
 if [ ! -z "$NEW_VERSION" ]; then
     echo "$NEW_VERSION" > "$VERSION_FILE"
