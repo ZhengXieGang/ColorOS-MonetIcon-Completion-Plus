@@ -62,7 +62,7 @@ cp -rf "$CACHE_DIR/uxicons/"* "$TARGET_A"
 cp -rf "$CACHE_DIR/uxicons/"* "$TARGET_B"
 
 echo ">>> 检查图标屏蔽列表..."
-PKG_LIST="$WEB_ROOT/pkglist"
+PKG_LIST="/data/adb/monet_pkglist"
 if [ -f "$PKG_LIST" ]; then
     count=0
     # Read line by line; handle missing newline at EOF
