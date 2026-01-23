@@ -195,23 +195,28 @@
             color: var(--md-sys-color-on-surface);
         }
 
+        .btn-fixed-width {
+            flex: 1;
+            /* Share width equally */
+            width: 100%;
+            /* Ensure full width in flex item */
+            justify-content: center;
+            min-width: 0;
+            /* Allow shrinking if needed */
+        }
+
         .warning-box {
             font-size: 13px;
             color: var(--md-sys-color-error);
             margin-top: 12px;
             background-color: rgba(255, 180, 171, 0.1);
             padding: 12px 16px;
-            border-radius: 8px;
+            border-radius: 12px;
             border-left: 4px solid var(--md-sys-color-error);
             text-align: left;
-            /* Align text left */
             line-height: 1.6;
-        }
-
-        .btn-fixed-width {
-            min-width: 130px;
-            /* Fixed width to prevent resizing */
-            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         @keyframes indeterminate {
@@ -637,9 +642,9 @@
                         个支持应用
                     </div>
 
-                    <div style="display:flex; gap:12px; justify-content:center;">
-                        <button class="btn btn-tonal" onclick="openIconManager()"
-                            style="width:auto; padding:10px 24px; flex:0 1 auto; margin-bottom:0;">
+                    <div style="display:flex; gap:12px; width:100%;">
+                        <button class="btn btn-tonal btn-fixed-width" onclick="openIconManager()"
+                            style="padding:10px 0; margin-bottom:0;">
                             <span style="font-size:18px; line-height:1; margin-right:6px;">↻</span> 重新扫描
                         </button>
                         <button id="btn-select-all" class="btn btn-tonal btn-fixed-width" onclick="toggleSelectAll()"
