@@ -53,9 +53,15 @@ jobs:
              COUNT=0
           fi
           
-          # WebUI 版本: 使用 webui 目录的提交次数
-          # 这样能准确反映 WebUI 的变更历史
-          WEBUI_VER=$(git rev-list --count HEAD -- webui)
+          # WebUI 版本: 读取 webui/webroot/index.html 中的 <!-- ReleaseCode=X -->
+          # 允许手动控制 WebUI 版本号
+          WEBUI_VER=$(grep -o "ReleaseCode=[0-9]\+" webui/webroot/index.html | cut -d= -f2)
+          
+          # 缺省值处理
+          if [ -z "$WEBUI_VER" ]; then
+             echo "Warning: ReleaseCode not found in index.html, defaulting to 0"
+             WEBUI_VER=0
+          fi
           
           # 组装版本号
           VERSION="v0.${COUNT}.${WEBUI_VER}"
