@@ -41,8 +41,8 @@ fi
 
 # 2. 检查 WebUI 更新包
 if [ -f "$WEBUI_ZIP" ]; then
-    echo ">>> 发现 WebUI 更新包，正在部署..."
-    # 解压到模块根目录 (允许覆盖 webroot 下的内容)
+    echo ">>> 发现 WebUI 包，正在部署..."
+    # 解压到模块根目录
     unzip -o "$WEBUI_ZIP" -d "$MOD_DIR" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         echo "警告: WebUI 更新失败"
@@ -68,11 +68,6 @@ fi
 
 echo ">>> 清理临时目录..."
 rm -rf "$CACHE_DIR"
-
-echo ">>> 刷新系统主题缓存..."
-rm -rf /data/data/com.heytap.theme/cache/*
-rm -rf /data/data/com.oplus.themestore/cache/*
-rm -rf /data/user_de/0/com.android.launcher/cache/*
 
 echo ">>> 全部完成 (Success)"
 exit 0
