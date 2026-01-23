@@ -210,13 +210,64 @@
             color: var(--md-sys-color-error);
             margin-top: 12px;
             background-color: rgba(255, 180, 171, 0.1);
-            padding: 12px 16px 12px 8px;
+            padding: 12px 16px 12px 16px;
             border-radius: 12px;
             border-left: 4px solid var(--md-sys-color-error);
             text-align: left;
-            line-height: 1.6;
             width: 100%;
             box-sizing: border-box;
+            transition: max-height 0.3s ease, background-color 0.2s;
+            cursor: pointer;
+            overflow: hidden;
+            max-height: 200px;
+            /* Expanded state approx height */
+        }
+
+        .warning-box.collapsed {
+            max-height: 48px;
+            /* Collapsed state */
+            background-color: rgba(255, 180, 171, 0.05);
+        }
+
+        .warning-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .chevron-icon {
+            transition: transform 0.3s ease;
+            width: 20px;
+            height: 20px;
+            fill: var(--md-sys-color-error);
+        }
+
+        .warning-box.collapsed .chevron-icon {
+            transform: rotate(-90deg);
+        }
+
+        .warning-content {
+            opacity: 1;
+            transition: opacity 0.2s ease;
+        }
+
+        .warning-box.collapsed .warning-content {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .code-path {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 2px 4px;
+            border-radius: 4px;
+            word-break: break-all;
+            user-select: text;
+            display: inline-block;
+            margin-top: 4px;
+            font-size: 11px;
         }
 
         @keyframes indeterminate {
@@ -624,11 +675,18 @@
         </div>
 
         <div class="card">
-            <div class="warning-box" style="margin-top:0; margin-bottom:20px;">
-                <strong style="display:block; margin-bottom:4px;">⚠️ 注意事项</strong>
-                此功能仅限系统和模块版本 503 及以上使用!<br>
-                被勾选的应用将恢复自带的莫奈图标，未被勾选的应用将保留自定义图标。于下次更新图标后生效。
-                可编辑/data/adb/modules/ThemedIconCompletion/webroot/pkglist文件来手动管理。
+            <div class="warning-box collapsed" id="warning-box" onclick="toggleWarning(this)">
+                <div class="warning-header">
+                    <span>⚠️ 注意事项 <span style="font-size:11px; font-weight:normal; opacity:0.7;">(点击展开)</span></span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24">
+                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
+                    </svg>
+                </div>
+                <div class="warning-content">
+                    此功能仅限系统和模块版本 503 及以上使用!<br>
+                    勾选恢复自带图标，未勾选保留自定义。下次更新生效。<br>
+                    配置文件: <span class="code-path">/data/adb/modules/ThemedIconCompletion/webroot/pkglist</span>
+                </div>
             </div>
             <div id="scan-status" style="text-align:center; padding:20px;">
                 <div class="spinner"></div>
@@ -1027,26 +1085,35 @@
         let scanTimer = null;
         let isScanning = false;
 
+        function toggleWarning(el) {
+            el.classList.toggle('collapsed');
+        }
+
         async function loadPkgList() {
             loadedPkgList.clear();
             try {
+                // Check if file exists first
+                const check = await exec(`[ -f "${PKGLIST_FILE}" ] && echo "exists"`);
+                if (!check.stdout || !check.stdout.includes("exists")) {
+                    log("提示: pkglist 文件不存在 (首次使用可能为空)", 'warn');
+                    return;
+                }
+
                 const res = await exec(`cat "${PKGLIST_FILE}"`);
                 if (res.errno === 0 && res.stdout) {
                     let content = res.stdout;
-                    // Remove BOM if present (common in manually edited files on Windows)
-                    if (content.charCodeAt(0) === 0xFEFF) {
-                        content = content.slice(1);
-                    }
+                    if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1);
 
                     const lines = content.split('\n');
                     lines.forEach(line => {
-                        // Support comments (#) and trim
                         const pkg = line.split('#')[0].trim();
                         if (pkg) loadedPkgList.add(pkg);
                     });
-                    console.log(`Loaded ${loadedPkgList.size} packages from pkglist`);
+                    log(`已加载 ${loadedPkgList.size} 个预设配置`, 'success');
+                } else {
+                    log("读取 pkglist 失败或为空", 'warn');
                 }
-            } catch (e) { console.log("Load pkglist error", e); }
+            } catch (e) { log("Load pkglist error: " + e.message, 'error'); }
         }
 
         async function savePkgList() {
