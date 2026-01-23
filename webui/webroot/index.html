@@ -210,7 +210,7 @@
             color: var(--md-sys-color-error);
             margin-top: 12px;
             background-color: rgba(255, 180, 171, 0.1);
-            padding: 12px 16px;
+            padding: 12px 16px 12px 8px;
             border-radius: 12px;
             border-left: 4px solid var(--md-sys-color-error);
             text-align: left;
@@ -628,6 +628,7 @@
                 <strong style="display:block; margin-bottom:4px;">⚠️ 注意事项</strong>
                 此功能仅限系统和模块版本 503 及以上使用!<br>
                 被勾选的应用将恢复自带的莫奈图标，未被勾选的应用将保留自定义图标。于下次更新图标后生效。
+                可编辑/data/adb/modules/ThemedIconCompletion/webroot/pkglist文件来手动管理。
             </div>
             <div id="scan-status" style="text-align:center; padding:20px;">
                 <div class="spinner"></div>
@@ -635,9 +636,9 @@
             </div>
 
             <div id="app-list-container" style="display:none;">
-                <div style="margin-bottom:20px; text-align:center;">
+                <div style="margin-bottom:20px; text-align:left;">
                     <div
-                        style="font-size:15px; color:var(--md-sys-color-on-surface); margin-bottom:12px; font-weight:500;">
+                        style="font-size:15px; color:var(--md-sys-color-on-surface); margin-bottom:12px; font-weight:500; padding-left: 12px;">
                         已发现 <span id="app-count"
                             style="color:var(--md-sys-color-primary); font-size:20px; font-weight:bold; margin:0 4px;">0</span>
                         个支持应用
@@ -645,7 +646,7 @@
 
                     <div style="display:flex; width:100%;">
                         <button id="btn-select-all" class="btn btn-tonal btn-fixed-width" onclick="toggleSelectAll()"
-                            style="padding:10px 16px; flex:0 0 auto; margin-bottom:0; color:var(--md-sys-color-primary);">
+                            style="padding:12px; justify-content:flex-start; margin-bottom:0; color:var(--md-sys-color-primary);">
                             <span id="icon-select-all" style="display:flex; align-items:center; margin-right:6px;">
                                 <svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1"
                                     xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18"
@@ -1031,11 +1032,19 @@
             try {
                 const res = await exec(`cat "${PKGLIST_FILE}"`);
                 if (res.errno === 0 && res.stdout) {
-                    const lines = res.stdout.split('\n');
+                    let content = res.stdout;
+                    // Remove BOM if present (common in manually edited files on Windows)
+                    if (content.charCodeAt(0) === 0xFEFF) {
+                        content = content.slice(1);
+                    }
+
+                    const lines = content.split('\n');
                     lines.forEach(line => {
-                        const pkg = line.trim();
+                        // Support comments (#) and trim
+                        const pkg = line.split('#')[0].trim();
                         if (pkg) loadedPkgList.add(pkg);
                     });
+                    console.log(`Loaded ${loadedPkgList.size} packages from pkglist`);
                 }
             } catch (e) { console.log("Load pkglist error", e); }
         }
