@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=4-->
+    <!-- ReleaseCode=3-->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -182,6 +182,8 @@
             /* Fix alignment issues */
             justify-content: center;
             align-items: center;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .rotate-icon {
@@ -638,16 +640,8 @@
             <p style="font-size:12px; color:var(--md-sys-color-on-surface-variant); margin-bottom:16px;">
                 扫描支持莫奈图标的应用，并管理自定义图标
             </p>
-            <button id="toggle-all-btn" class="btn btn-tonal" onclick="toggleSelectAll()"
-                style="width:auto; padding:10px 24px; flex:0 1 auto; margin-bottom:0; color:var(--md-sys-color-primary);">
-                <svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1"
-                    xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18"
-                    style="margin-right:6px; fill:currentColor;" preserveAspectRatio="xMidYMid meet">
-                    <path
-                        d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0"
-                        p-id="7447"></path>
-                </svg>
-                <span id="toggle-all-text">全选</span>
+            <button class="btn btn-tonal" onclick="openIconManager()">
+                管理图标
             </button>
         </div>
 
@@ -721,13 +715,7 @@
 
         // 【修正】这里的变量虽然 JS 实际上不直接用它来移动文件了，但保持与脚本一致是个好习惯
         const TARGET_B = `${MOD_ROOT}/my_product/media/theme/uxicons/hdpi/`;
-        // User requested moving pkglist to /data/adb/
         const PKG_LIST_FILE = "/data/adb/monet_pkglist";
-
-        async function ensureCacheDir() {
-            await exec(`mkdir -p "${CACHE_ROOT}"`);
-            await exec(`chmod 777 "${CACHE_ROOT}"`);
-        }
 
         let currentCloudVersion = null;
         let currentLocalVersion = null;
@@ -878,7 +866,7 @@
                 statusText.innerText = "已是最新版";
                 statusText.style.color = "var(--md-sys-color-success)";
                 detailText.innerText = `本地版本: ${currentLocalVersion}`;
-                iconEl.innerHTML = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="64" height="64" preserveAspectRatio="xMidYMid meet"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447" fill="var(--md-sys-color-success)"></path></svg>`;
+                iconEl.innerHTML = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="100%" height="100%" preserveAspectRatio="xMidYMid meet"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447" fill="var(--md-sys-color-success)"></path></svg>`;
                 iconEl.style.fill = "var(--md-sys-color-success)";
                 iconEl.className = "status-icon-large"; // Stop rotation
 
@@ -1191,9 +1179,6 @@
             document.getElementById('scan-status').style.display = 'block';
             document.getElementById('app-list-container').style.display = 'none';
 
-            // Ensure cache dir exists
-            await ensureCacheDir();
-
             // Start scan script
             let cmd = `sh "${MOD_ROOT}/scan_monet.sh" > "${SCAN_LOG}" 2>&1 &`;
             await exec(cmd);
@@ -1201,12 +1186,8 @@
             isScanning = true;
             if (scanTimer) clearInterval(scanTimer);
 
-            // Load saved selection first (fail-safe)
-            try {
-                await loadPkgList();
-            } catch (e) {
-                console.error("Failed to load pkglist", e);
-            }
+            // Load saved selection first
+            await loadPkgList();
 
             scanTimer = setInterval(async () => {
                 if (!isScanning) return;
