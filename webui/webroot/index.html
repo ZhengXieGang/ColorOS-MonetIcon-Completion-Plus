@@ -620,14 +620,15 @@
             </button>
             <h1>莫奈图标管理</h1>
             <p>Monet Icon Manager</p>
-            <div class="warning-box">
+
+        </div>
+
+        <div class="card">
+            <div class="warning-box" style="margin-top:0; margin-bottom:20px;">
                 <strong style="display:block; margin-bottom:4px;">⚠️ 注意事项</strong>
                 此功能仅限系统和模块版本 503 及以上使用!<br>
                 被勾选的应用将恢复自带的莫奈图标，未被勾选的应用将保留自定义图标。于下次更新图标后生效。
             </div>
-        </div>
-
-        <div class="card">
             <div id="scan-status" style="text-align:center; padding:20px;">
                 <div class="spinner"></div>
                 <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在检测环境...</p>
@@ -642,11 +643,7 @@
                         个支持应用
                     </div>
 
-                    <div style="display:flex; gap:12px; width:100%;">
-                        <button class="btn btn-tonal btn-fixed-width" onclick="openIconManager()"
-                            style="padding:10px 0; margin-bottom:0;">
-                            <span style="font-size:18px; line-height:1; margin-right:6px;">↻</span> 重新扫描
-                        </button>
+                    <div style="display:flex; width:100%;">
                         <button id="btn-select-all" class="btn btn-tonal btn-fixed-width" onclick="toggleSelectAll()"
                             style="padding:10px 16px; flex:0 0 auto; margin-bottom:0; color:var(--md-sys-color-primary);">
                             <span id="icon-select-all" style="display:flex; align-items:center; margin-right:6px;">
