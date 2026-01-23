@@ -759,10 +759,13 @@
             btn.disabled = false;
             btn.onclick = startUpdate;
 
-            // 统计信息
-            // const match = currentCloudVersion.match(/(\d+)$/);
-            // const count = match ? parseInt(match[1], 10) : 0;
-            // document.getElementById('extra-info').innerText = `已适配 ${count} 个图标`;
+            // 统计信息 (格式: v0.63.2 -> 63)
+            let count = 0;
+            const parts = currentCloudVersion.replace(/^v/, '').split('.');
+            if (parts.length >= 2) {
+                count = parseInt(parts[1], 10) || 0;
+            }
+            document.getElementById('extra-info').innerText = `累计追加适配 ${count} 个图标`;
         }
 
         function updateButtonState() {

@@ -41,23 +41,54 @@ jobs:
           # 去除空格
           count=$(echo $count | xargs)
           
-          # 3. 格式化版本号 (例如 v0.58.10)
-          # 使用 ${count} + ${github.run_number} 确保唯一性
-          # 这解决了 只修改 WebUI 但图标数不变导致 release 失败的问题
+          # 3. 智能版本号生成 logic
+          # 格式: v0.{图标数}.{WebUI版本}
           
-          # 去掉前导零，避免 octal 解析问题
-          count_clean=$(echo $count | sed 's/^0*//')
-          if [ -z "$count_clean" ]; then count_clean=0; fi
+          # 获取此前的最新 Tag (v0.*)
+          git fetch --tags
+          LAST_TAG=$(git tag --sort=-v:refname | grep "^v0\." | head -n 1 || echo "")
+          echo "Last Tag: $LAST_TAG"
           
-          version="v0.${count_clean}.${{ github.run_number }}"
+          # 解析上一个 WebUI 版本号
+          LAST_WEBUI_VER=0
+          if [[ "$LAST_TAG" =~ ^v0\.([0-9]+)\.([0-9]+)$ ]]; then
+             LAST_WEBUI_VER=${BASH_REMATCH[2]}
+          elif [[ "$LAST_TAG" =~ ^v0\.([0-9]+)$ ]]; then
+             # 兼容旧格式 v0.0058 -> 视为 v0.58.0
+             LAST_WEBUI_VER=0
+          fi
           
-          echo "Icon Count: $count"
-          echo "Run Number: ${{ github.run_number }}"
-          echo "Generated Version: $version"
+          # 检测 WebUI 变动
+          NEW_WEBUI_VER=$LAST_WEBUI_VER
+          if [ -n "$LAST_TAG" ]; then
+             # 检查 HEAD 与 LAST_TAG 之间是否有 webui 目录的文件变动
+             if git diff --name-only "$LAST_TAG" HEAD | grep -q "^webui/"; then
+                NEW_WEBUI_VER=$((LAST_WEBUI_VER + 1))
+                echo "WebUI 已更新 ($LAST_WEBUI_VER -> $NEW_WEBUI_VER)"
+             else
+                echo "WebUI 无变动，保持版本 ($LAST_WEBUI_VER)"
+             fi
+          fi
+          
+          # 图标计数 (去除前导零)
+          if [ -d "uxicons" ]; then
+             COUNT=$(find uxicons -type f | wc -l | xargs)
+             COUNT=$(echo $COUNT | sed 's/^0*//') # 63
+             [ -z "$COUNT" ] && COUNT=0
+          else
+             COUNT=0
+          fi
+          
+          # 组装版本号
+          VERSION="v0.${COUNT}.${NEW_WEBUI_VER}"
+          
+          echo "Icon Count: $COUNT"
+          echo "WebUI Ver:  $NEW_WEBUI_VER"
+          echo "Final Version: $VERSION"
           
           # 导出变量
-          echo "ICON_COUNT=$count" >> $GITHUB_OUTPUT
-          echo "VERSION_TAG=$version" >> $GITHUB_OUTPUT
+          echo "ICON_COUNT=$COUNT" >> $GITHUB_OUTPUT
+          echo "VERSION_TAG=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Prepare Assets
         run: |
