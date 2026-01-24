@@ -23,9 +23,8 @@
     * 脚本会将 `uxicons` 文件夹内所有文件重命名为 `monochrome.png`。
     
 4.  **提交请求**
-    * 
-    * Frok本仓库，将本地`uxicon`文件夹中的内容上传到自己的`uxicon`文件夹中。
-    * 创建pull request,合并后会自动Release新版本。
+    * Fork本仓库，将本地`uxicon`文件夹中的内容上传到自己Fork后仓库中的`uxicon`文件夹中。
+    * 提交pull request,合并后会自动Release新版本。
 
 ## 图标规范
 
