@@ -24,8 +24,10 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # === 2. Configuration ===
+# Hardcode specific path to avoid ambiguity in different execution contexts
 MODDIR="/data/adb/modules/ThemedIconCompletion"
-MODE="$1" # full or partial
+# Ensure the directory exists
+mkdir -p "$MODDIR/webroot"
 AAPT_DIR="$MODDIR/webroot/aapt2"
 BLACKLIST_FILE="$MODDIR/webroot/blacklist"
 
@@ -40,16 +42,6 @@ AAPT="$AAPT_DIR/$AAPT_BIN"
 [ -f "$AAPT" ] && chmod +x "$AAPT"
 
 echo "准备扫描列表..." > "$LOG_FILE"
-
-# === 2.1 Mode Handling ===
-if [ "$MODE" = "full" ]; then
-    echo "Full Scan Mode: Clearing previous results..." >> "$LOG_FILE"
-    # Only delete the result file in full mode to force re-scan
-    rm -f "$RESULT_FILE"
-fi
-
-# Ensure output directory exists (Fix for missing file issue)
-mkdir -p "$(dirname "$RESULT_FILE")"
 
 # === 3. Prepare Lists ===
 

@@ -770,24 +770,6 @@
     </style>
 </head>
 
-<!-- Refresh Mode Dialog -->
-<div id="refresh-mode-dialog" class="dialog-overlay" style="display: none;">
-    <div class="dialog-box">
-        <h3 class="dialog-title">选择刷新模式</h3>
-        <div class="dialog-content">
-            <p style="margin-bottom:12px;"><b>完整刷新</b>: 重新生成整个应用列表，耗时较长。</p>
-            <p><b>部分刷新</b>: 仅扫描未检测的应用，保留现有结果。</p>
-        </div>
-        <div class="dialog-actions" style="flex-direction:column; gap:8px;">
-            <button class="dialog-btn" onclick="startScan('full')"
-                style="background:var(--md-sys-color-primary); color:var(--md-sys-color-on-primary); width:100%;">完整刷新</button>
-            <button class="dialog-btn" onclick="startScan('partial')"
-                style="background:var(--md-sys-color-surface-variant); color:var(--md-sys-color-on-surface-variant); width:100%;">部分刷新</button>
-            <button class="dialog-btn" onclick="closeRefreshDialog()" style="width:100%; margin-top:4px;">取消</button>
-        </div>
-    </div>
-</div>
-
 <body>
 
     <div class="container">
@@ -1021,6 +1003,39 @@
         </div>
     </div>
 
+    </div>
+
+    <!-- Refresh Options Modal -->
+    <div id="refresh-modal" class="dialog-overlay" style="display:none; z-index:2200;">
+        <div class="dialog" style="max-width: 320px; width: 85%;">
+            <div class="dialog-title">刷新模式</div>
+            <div class="dialog-content" style="margin-bottom: 20px;">
+                请选择需要执行的扫描操作：
+            </div>
+
+            <button class="btn btn-tonal" onclick="handleRefresh(false)"
+                style="margin-bottom: 12px; width:100%; justify-content: flex-start; text-align: left; padding: 16px;">
+                <div style="display:flex; flex-direction:column; align-items:start;">
+                    <span style="font-weight:bold; font-size:15px; margin-bottom:4px;">部分刷新</span>
+                    <span style="font-size:12px; opacity:0.7;">保留现有结果，仅扫描列表外的应用</span>
+                </div>
+            </button>
+
+            <button class="btn btn-tonal" onclick="handleRefresh(true)"
+                style="margin-bottom: 20px; width:100%; justify-content: flex-start; text-align: left; padding: 16px; border: 1px solid var(--md-sys-color-primary); background-color: rgba(208, 188, 255, 0.05);">
+                <div style="display:flex; flex-direction:column; align-items:start; color:var(--md-sys-color-primary);">
+                    <span style="font-weight:bold; font-size:15px; margin-bottom:4px;">完整刷新</span>
+                    <span style="font-size:12px; opacity:0.7;">清除所有缓存，重新生成应用列表</span>
+                </div>
+            </button>
+
+            <div class="dialog-buttons">
+                <button class="dialog-btn dialog-btn-cancel"
+                    onclick="document.getElementById('refresh-modal').style.display='none'">
+                    取消
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1475,68 +1490,14 @@
             if (!isScanning) {
                 const cacheCheck = await exec(`[ -s "${MONET_APPS_FILE}" ] && echo "FOUND"`);
                 if (cacheCheck.stdout.trim() === "FOUND") {
-                    // Cache hit - Skip scan and show list directly
+                    // Cache hit - Skip scan
+                    document.getElementById('scan-status').style.display = 'none';
                     await loadScanResults();
+                    return;
                 } else {
-                    // No cache, prompt for scan type (or default to partial if first time)
-                    // For first time, we can just do partial (which is effectively full if empty)
-                    // But to be consistent, let's just start a partial scan automatically if it's missing
-                    startScan('partial');
+                    // No cache, start partial scan (effectively full if new, but Partial keeps safe)
+                    await startScan(false);
                 }
-            } else {
-                pollScanProgress();
-            }
-        }
-
-        function showRefreshDialog() {
-            document.getElementById('refresh-mode-dialog').style.display = 'flex';
-        }
-
-        function closeRefreshDialog() {
-            document.getElementById('refresh-mode-dialog').style.display = 'none';
-        }
-
-        async function startScan(mode = 'partial') {
-            closeRefreshDialog();
-
-            const statusEl = document.getElementById('scan-status');
-            statusEl.innerHTML = `
-                <div class="spinner scanner-anim"></div>
-                <p style="margin-top:16px; font-weight:500;">正在扫描已安装应用...</p>
-                <div id="scan-progress-wrap" class="scan-progress-wrap">
-                    <div id="scan-progress-bar" class="scan-progress-bar"></div>
-                </div>
-                <div id="scan-file" style="font-size:12px; color:var(--md-sys-color-outline); margin-top:8px; height:20px;"></div>
-            `;
-            // Show scan status, hide list
-            document.getElementById('scan-status').style.display = 'block';
-            document.getElementById('app-list-container').style.display = 'none';
-
-            // Load pkglist BEFORE scan
-            await loadPkgList();
-
-            // 开始后台扫描
-            try {
-                // 赋予权限并创建目录
-                await exec(`chmod +x "${SCAN_SCRIPT}"`);
-                await exec(`mkdir -p "${CACHE_ROOT}"`);
-
-                // 清理旧日志（保留结果文件以支持增量扫描）
-                await exec(`echo "准备就绪" > "${SCAN_LOG}"`);
-
-                // 启动后台进程 (nohup ... &)
-                // Pass mode as argument
-                const scanCmd = `nohup sh "${SCAN_SCRIPT}" "${mode}" > /dev/null 2>&1 &`;
-                await exec(scanCmd);
-
-                isScanning = true;
-                pollScanProgress();
-
-            } catch (e) {
-                statusEl.innerHTML = `
-                    <p style="color:var(--md-sys-color-error); text-align:center;">启动失败: ${e.message}</p>
-                    <button class="btn btn-tonal" onclick="backToMain()" style="margin-top:16px;">返回</button>
-                `;
             }
         }
 
@@ -1602,7 +1563,7 @@
 
             document.getElementById('scan-status').innerHTML = `
                 <p style="color:var(--md-sys-color-error); margin-bottom:16px;">扫描已手动终止</p>
-                <button class="btn btn-tonal" onclick="showRefreshDialog()">重新扫描</button>
+                <button class="btn btn-tonal" onclick="openIconManager()">重新扫描</button>
                 <button class="btn btn-tonal" onclick="backToMain()" style="margin-left:8px;">返回</button>
             `;
         }
@@ -1616,7 +1577,7 @@
             if (appsRes.errno !== 0) {
                 document.getElementById('scan-status').innerHTML = `
                     <p>读取结果失败</p>
-                    <button class="btn btn-tonal" onclick="showRefreshDialog()">重试</button>
+                    <button class="btn btn-tonal" onclick="openIconManager()">重试</button>
                 `;
                 return;
             }
@@ -1775,30 +1736,60 @@
             document.querySelector('.container').style.display = 'block';
         }
 
-        async function refreshScan() {
+        function refreshScan() {
             if (isScanning) return;
-
-            showDialog(
-                "重新扫描",
-                "确定要重新扫描吗？这将清除现有缓存并完整重新扫描所有应用。",
-                true, // show cancel
-                async () => {
-                    // On Confirm
-                    document.getElementById('app-list').innerHTML = '';
-                    document.getElementById('scan-status').innerHTML = `
-                        <div class="spinner"></div>
-                        <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
-                    `;
-
-                    // Delete result file to force full scan
-                    await exec(`rm -f "${MONET_APPS_FILE}"`);
-
-                    // Start Scan
-                    openIconManager();
-                }
-            );
+            document.getElementById('refresh-modal').style.display = 'flex';
         }
 
+        async function handleRefresh(fullRefresh) {
+            document.getElementById('refresh-modal').style.display = 'none';
+            await startScan(fullRefresh);
+        }
+
+        async function startScan(fullRefresh = false) {
+            // Reset UI
+            document.getElementById('scan-status').style.display = 'block';
+            document.getElementById('scan-status').innerHTML = `
+                <div class="spinner"></div>
+                <p id="scan-msg" style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
+                <div id="scan-progress-wrap" class="scan-progress-wrap">
+                    <div id="scan-progress-bar" class="scan-progress-bar"></div>
+                </div>
+                <div id="scan-file" style="font-size:12px; color:var(--md-sys-color-outline); margin-top:8px; height:20px;"></div>
+            `;
+            document.getElementById('app-list-container').style.display = 'none';
+
+            // Load pkglist
+            await loadPkgList();
+
+            try {
+                // Ensure scripts executable
+                await exec(`chmod +x "${SCAN_SCRIPT}"`);
+                await exec(`mkdir -p "${CACHE_ROOT}"`);
+
+                if (fullRefresh) {
+                    await exec(`rm -f "${MONET_APPS_FILE}"`);
+                    // Clear other temp files too if needed
+                    await exec(`rm -f "${CACHE_ROOT}/progress.json"`);
+                }
+
+                // Clean logs
+                await exec(`echo "准备扫描..." > "${SCAN_LOG}"`);
+
+                // Start background scan
+                const scanCmd = `nohup sh "${SCAN_SCRIPT}" > /dev/null 2>&1 &`;
+                await exec(scanCmd);
+
+                isScanning = true;
+                pollScanProgress();
+
+            } catch (e) {
+                document.getElementById('scan-status').innerHTML = `
+                    <p style="color:var(--md-sys-color-error);">启动扫描失败: ${e.message}</p>
+                    <button class="btn btn-tonal" onclick="openIconManager()">重试</button>
+                `;
+            }
+        }
         function showDialog(title, content, showCancel, onConfirm) {
             const overlay = document.createElement('div');
             overlay.className = 'dialog-overlay';
