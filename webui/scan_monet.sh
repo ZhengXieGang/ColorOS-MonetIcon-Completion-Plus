@@ -1,51 +1,88 @@
 #!/system/bin/sh
-# 优化版扫描脚本: 使用 pm list -f 减少 IPC 调用
 
+# Logging Setup
 LOG_FILE="/data/adb/moneticon_tmp/scan.log"
 RESULT_FILE="/data/adb/moneticon_tmp/moneticon_apps"
 
-echo "正在准备扫描..." > "$LOG_FILE"
+# Ensure clean state
+echo "正在初始化扫描..." > "$LOG_FILE"
 echo "" > "$RESULT_FILE"
 
-# 1. 直接获取所有第三方应用的 路径=包名
-# 输出格式示例: package:/data/app/~~.../base.apk=com.example.app
-echo "正在获取应用列表..." >> "$LOG_FILE"
-RAW_LIST=$(pm list packages -f -3)
+# === 1. Prepare AAPT2 ===
+# MODDIR corresponds to the directory where this script resides.
+MODDIR=${0%/*}
+# AAPT binaries are expected in webroot/aapt2/
+AAPT_DIR="$MODDIR/webroot/aapt2"
 
-# 统计总数 (计算行数)
+# Detect Architecture
+ABI=$(getprop ro.product.cpu.abi)
+if echo "$ABI" | grep -q "arm64"; then
+    AAPT_BIN="aapt2-arm64-v8a"
+else
+    # Fallback to 32-bit (v7a) for others, assuming mostly arm devices
+    AAPT_BIN="aapt2-armeabi-v7a"
+fi
+
+AAPT="$AAPT_DIR/$AAPT_BIN"
+
+# Validation
+if [ ! -f "$AAPT" ]; then
+    echo "错误: 未找到 AAPT2 二进制文件: $AAPT" >> "$LOG_FILE"
+    echo "DONE" >> "$LOG_FILE"
+    exit 1
+fi
+
+chmod +x "$AAPT"
+echo "引擎: $AAPT_BIN" >> "$LOG_FILE"
+
+# === 2. Fetch App List ===
+echo "正在获取应用列表..." >> "$LOG_FILE"
+# Format: package:/data/app/~~.../base.apk=com.example
+RAW_LIST=$(pm list packages -f -3)
 TOTAL=$(echo "$RAW_LIST" | grep -c "package:")
 CURRENT=0
 
-echo "开始高速扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
+echo "开始深度扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
 
-# 使用 IFS read 处理每一行
+# === 3. Scanning Loop ===
 echo "$RAW_LIST" | while read -r line; do
-    # line: package:/path/to/base.apk=com.pkg.name
+    # Skip empty lines
+    [ -z "$line" ] && continue
     
-    # 去除 'package:' 前缀
+    # Parse line: package:PATH=PKG
     temp=${line#package:}
-    
-    # 提取路径 (截取到最后一个 = 之前)
     apk_path=${temp%=*}
-    
-    # 提取包名 (截取最后一个 = 之后)
     pkg_name=${temp##*=}
 
     if [ -z "$apk_path" ] || [ -z "$pkg_name" ]; then
         continue
     fi
-    
-    # 进度计数 (在 while subshell 中计数无法传递给父 shell，但这里只用于打日志)
-    # 简单的进度展示: 每 5 个或 10 个更新一次日志，或者每个都更新但可能太快
-    # 既然速度很快，直接输出即可
+
     CURRENT=$((CURRENT + 1))
+
+    # --- Analysis Logic ---
+    is_supported=false
+
+    # Step 1: Get Icon Path from Badging
+    # Output line example: application: label='App Name' icon='res/mipmap-anydpi-v26/ic_launcher.xml'
+    icon_path=$($AAPT dump badging "$apk_path" 2>/dev/null | grep "application: label" | sed -n "s/.*icon='\([^']*\)'.*/\1/p")
     
-    # 搜索关键字
-    if grep -a -q "monochrome" "$apk_path"; then
-        echo "$pkg_name" >> "$RESULT_FILE"
+    # Only proceed if we found an XML icon (Adaptive Icons are usually XML)
+    if [[ "$icon_path" == *.xml ]]; then
+        # Step 2: Dump XML Tree and search for 'monochrome'
+        # This confirms if the adaptive icon has a monochrome layer defined
+        if $AAPT dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q "monochrome"; then
+            is_supported=true
+        fi
     fi
-    
-    # 输出进度 (前端会解析这个格式)
+
+    if [ "$is_supported" = true ]; then
+        echo "$pkg_name" >> "$RESULT_FILE"
+        # Optional: Log finding
+        # echo "Found: $pkg_name" >> "$LOG_FILE"
+    fi
+
+    # Progress Update
     echo "PROGRESS:$CURRENT/$TOTAL:$pkg_name" >> "$LOG_FILE"
 done
 

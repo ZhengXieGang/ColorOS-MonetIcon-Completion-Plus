@@ -4,8 +4,8 @@
 > **说明**：由于模块作者未授权，此项目不提供原模块，欢迎各位 commit 图标。
 
 ## 使用方法
-1. 下载项目里的webui.zip。
-2. 将webroot文件夹和update.sh放入原模块的目录或放入模块后刷入。
+1. 下载release里的webui.zip。
+2. 将webui.zip的内容放入原模块的目录`data/adb/modules/ThemedIconCompletion`或放入模块文件的压缩包内刷入。
 3. 更新完图标记得在管理器里关掉系统桌面的默认卸载模块，重新更换一次图标包。
 
 ## 适配指南

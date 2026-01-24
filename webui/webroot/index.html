@@ -573,6 +573,65 @@
             transform: scale(0.95);
         }
     </style>
+    <style>
+        /* Manual Add Modal Styles */
+        #manual-add-modal {
+            z-index: 2000;
+            /* Higher than normal dialogs */
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--md-sys-color-on-surface-variant);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        #manual-app-list {
+            max-height: 60vh;
+            overflow-y: auto;
+            margin: -24px;
+            /* Compensate for padding */
+            padding: 24px;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+        /* Float FAB in Modal */
+        #fab-manual-save {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: none;
+            /* Hidden by default */
+            align-items: center;
+            justify-content: center;
+            z-index: 2100;
+            transition: all 0.3s;
+        }
+    </style>
 </head>
 
 <body>
@@ -677,7 +736,7 @@
         <div class="card">
             <div class="warning-box collapsed" id="warning-box" onclick="toggleWarning(this)">
                 <div class="warning-header">
-                    <span>⚠️ 注意事项 <span style="font-size:11px; font-weight:normal; opacity:0.7;">(点击展开)</span></span>
+                    <span>⚠️ 注意事项</span>
                     <svg class="chevron-icon" viewBox="0 0 24 24">
                         <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>
                     </svg>
@@ -685,7 +744,7 @@
                 <div class="warning-content">
                     此功能仅限系统和模块版本 503 及以上使用!<br>
                     勾选恢复自带图标，未勾选保留自定义。下次更新生效。<br>
-                    配置文件: <span class="code-path">/data/adb/modules/ThemedIconCompletion/webroot/pkglist</span>
+                    可手动修改配置文件: <span class="code-path">/data/adb/modules/ThemedIconCompletion/webroot/pkglist</span>
                 </div>
             </div>
             <div id="scan-status" style="text-align:center; padding:20px;">
@@ -717,6 +776,20 @@
                             <span id="text-select-all">全选</span>
                         </button>
                     </div>
+
+                    <!-- Manual Add Button (Below Select All) -->
+                    <div style="display:flex; width:100%; margin-top: 12px;">
+                        <button id="btn-manual-add" class="btn btn-tonal btn-fixed-width" onclick="openManualAdd()"
+                            style="padding:12px; justify-content:flex-start; margin-bottom:0; color:var(--md-sys-color-primary);">
+                            <span style="display:flex; align-items:center; margin-right:6px;">
+                                <!-- Plus Icon -->
+                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                            </span>
+                            <span>手动添加</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="app-list"></div>
@@ -736,6 +809,44 @@
     <div id="app-list"></div>
     </div>
     </div>
+    </div>
+    </div>
+
+    <!-- Manual Add Modal -->
+    <div id="manual-add-modal" class="dialog-overlay" style="display:none;">
+        <div class="dialog" style="max-width: 90%; width: 500px; position: relative;">
+            <div class="modal-header">
+                <h3>选择应用</h3>
+                <button class="modal-close-btn" onclick="closeManualModal()">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Search Box -->
+            <div style="padding: 0 0 16px 0;">
+                <input type="text" id="manual-search-input" placeholder="搜索应用名称或包名..."
+                    oninput="filterManualList(this.value)"
+                    style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); font-size: 14px; box-sizing: border-box; outline: none; transition: border-color 0.2s;">
+            </div>
+
+            <div id="manual-app-list">
+                <!-- App Items will be injected here -->
+                <div style="text-align:center; padding: 20px;">正在加载应用列表...</div>
+            </div>
+
+            <!-- FAB inside Modal -->
+            <button id="fab-manual-save" onclick="saveManualSelection()">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                    <path
+                        d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
     </div>
 
     <script>
@@ -1091,29 +1202,45 @@
 
         async function loadPkgList() {
             loadedPkgList.clear();
-            try {
-                // Check if file exists first
-                const check = await exec(`[ -f "${PKGLIST_FILE}" ] && echo "exists"`);
-                if (!check.stdout || !check.stdout.includes("exists")) {
-                    log("提示: pkglist 文件不存在 (首次使用可能为空)", 'warn');
-                    return;
-                }
+            const fileName = PKGLIST_FILE.split('/').pop();
 
-                const res = await exec(`cat "${PKGLIST_FILE}"`);
-                if (res.errno === 0 && res.stdout) {
-                    let content = res.stdout;
+            try {
+
+
+                // 2. Read content using 'echo $(cat ...)' to flatten output
+                // This bypasses the shell execution environment issue where only the last line is returned.
+                // It converts newlines to spaces, so we parse by splitting on whitespace.
+                log(`[DEBUG] 读取模式: Flatten Mode`);
+                const res = await exec(`echo $(cat "${PKGLIST_FILE}")`);
+
+                if (res.errno === 0) {
+                    let content = res.stdout || "";
+                    if (!content.trim()) {
+                        log("配置文件内容解析为空", 'warn');
+                        return;
+                    }
+
+                    // Remove BOM if present (though echo might have stripped it, safety first)
                     if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1);
 
-                    const lines = content.split('\n');
-                    lines.forEach(line => {
-                        const pkg = line.split('#')[0].trim();
-                        if (pkg) loadedPkgList.add(pkg);
+                    // Split by any whitespace (space, tab, newline)
+                    const tokens = content.split(/\s+/);
+                    let count = 0;
+                    tokens.forEach(token => {
+                        // Remove potential comments (starting with #)
+                        const pkg = token.split('#')[0].trim();
+                        if (pkg && pkg.length > 3) { // Basic sanity check for package name length
+                            loadedPkgList.add(pkg);
+                            count++;
+                        }
                     });
-                    log(`已加载 ${loadedPkgList.size} 个预设配置`, 'success');
+                    log(`成功加载 ${count} 个配置项`, 'success');
                 } else {
-                    log("读取 pkglist 失败或为空", 'warn');
+                    log(`读取失败 (Err ${res.errno}): ${res.stderr}`, 'error');
                 }
-            } catch (e) { log("Load pkglist error: " + e.message, 'error'); }
+            } catch (e) {
+                log(`执行异常: ${e.message}`, 'error');
+            }
         }
 
         async function savePkgList() {
@@ -1147,18 +1274,6 @@
 
         function onSelectionChange() {
             const fab = document.getElementById('fab-save');
-            // Allow user to save whenever they want? 
-            // Or only if dirty? 
-            // User requirement: "勾选任意应用后...出现保存按钮"
-            // "用户取消勾选保存后将对应的包名从文件中移除" -> implies we save the *current state*.
-            // Simple logic: Always show FAB if we are in manager view (or maybe when selection is valid).
-            // But better: Show FAB when user interactions happen.
-            // Let's simple show it permanently once loaded?
-            // "勾选任意应用后右下角出现保存按钮" -> implies it appears on interaction.
-            // Let's show it if there is *any* change? Or just show it always when in list?
-            // "勾选任意应用后..." means "After checking *any* app" (could be count > 0?)
-            // But if I uncheck all, I should also be able to save (empty file).
-            // So: Show FAB whenever a check/uncheck happens.
             fab.style.display = 'flex';
         }
 
@@ -1169,9 +1284,6 @@
                 loadedPkgList.delete(pkg);
             }
             onSelectionChange();
-
-            // Check if all checked to update "Select All" text
-            // Optimization: Don't strict check every time if list is huge
         }
 
         async function openIconManager() {
@@ -1496,6 +1608,175 @@
             overlay.onclick = (e) => {
                 if (e.target === overlay) overlay.remove();
             };
+        }
+
+        // === Manual Add Feature ===
+        let allThirdPartyApps = [];
+
+        async function openManualAdd() {
+            const modal = document.getElementById('manual-add-modal');
+            const listContainer = document.getElementById('manual-app-list');
+            modal.style.display = 'flex';
+            listContainer.innerHTML = '<div style="text-align:center; padding:20px;">正在加载应用列表...</div>';
+
+            try {
+                // Fetch Apps
+                // 1. Get List via Shell (Using echo $() to flatten output and avoid truncation)
+                const res = await exec('echo $(pm list packages -3)');
+                if (res.errno !== 0) throw new Error("无法获取应用列表");
+
+                const raw = res.stdout || "";
+                // Flattened output -> split by whitespace
+                allThirdPartyApps = raw.split(/\s+/)
+                    .filter(token => token.startsWith('package:'))
+                    .map(token => token.replace('package:', '').trim())
+                    .sort();
+
+                renderManualList();
+
+                // Async fetch labels
+                updateManualLabels();
+
+            } catch (e) {
+                listContainer.innerHTML = `<div style="color:red; text-align:center;">加载失败: ${e.message}</div>`;
+            }
+        }
+
+        function closeManualModal() {
+            document.getElementById('manual-add-modal').style.display = 'none';
+            // Hide FAB
+            document.getElementById('fab-manual-save').style.display = 'none';
+        }
+
+        function filterManualList(query) {
+            renderManualList(query);
+        }
+
+        function renderManualList(filter = "") {
+            const listContainer = document.getElementById('manual-app-list');
+            listContainer.innerHTML = '';
+
+            const lowerFilter = filter.toLowerCase().trim();
+
+            const filteredApps = allThirdPartyApps.filter(pkg => {
+                if (!lowerFilter) return true;
+                if (pkg.toLowerCase().includes(lowerFilter)) return true;
+                if (window.manualAppLabels && window.manualAppLabels[pkg]) {
+                    const label = window.manualAppLabels[pkg].toLowerCase();
+                    if (label.includes(lowerFilter)) return true;
+                }
+                return false;
+            });
+
+            if (filteredApps.length === 0) {
+                listContainer.innerHTML = '<div style="text-align:center; padding:20px;">未找到匹配应用</div>';
+                return;
+            }
+
+            filteredApps.forEach(pkg => {
+                const isChecked = loadedPkgList.has(pkg);
+                const safeId = pkg.replace(/\./g, '_');
+                const domId = `manual-name-${safeId}`;
+                const label = (window.manualAppLabels && window.manualAppLabels[pkg]) ? window.manualAppLabels[pkg] : pkg;
+
+                const item = document.createElement('div');
+                item.className = 'app-item';
+                item.onclick = (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        const cb = document.getElementById(`manual-cb-${safeId}`);
+                        if (cb) {
+                            cb.checked = !cb.checked;
+                            toggleManualCheck(pkg, cb.checked);
+                        }
+                    }
+                };
+
+                item.innerHTML = `
+                    <div style="margin-right:16px; display:flex; align-items:center;">
+                         <input type="checkbox" id="manual-cb-${safeId}" 
+                             style="width:20px; height:20px; accent-color:var(--md-sys-color-primary);"
+                             ${isChecked ? 'checked' : ''}
+                             onchange="toggleManualCheck('${pkg}', this.checked)">
+                    </div>
+                    <div class="app-info">
+                        <div class="app-name" id="${domId}" style="font-size:16px;">${label}</div>
+                        <div class="app-package" style="margin-top:2px;">${pkg}</div>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        function toggleManualCheck(pkg, checked) {
+            if (checked) {
+                loadedPkgList.add(pkg);
+            } else {
+                loadedPkgList.delete(pkg);
+            }
+            // Show FAB
+            document.getElementById('fab-manual-save').style.display = 'flex';
+        }
+
+        async function saveManualSelection() {
+            await savePkgList(); // Reuse main save logic
+            // Refresh main list if it's visible? 
+            // Since we updated loadedPkgList directly, if we go back to the main view, we might need to refresh IT.
+            // But main view is hidden if we are in manual mode? 
+            // "Manual Add" is ON TOP of main view.
+
+            // Re-render main list to reflect changes (e.g. checked states might have changed)
+            // But main list only shows SCANNED apps.
+            // If we added an app that was NOT scanned, it won't show in main list anyway.
+            // If we added an app that WAS scanned, we need to update its checkbox in main list.
+            if (monetApps.length > 0) {
+                monetApps.forEach(p => {
+                    const safeId = p.replace(/\./g, '_');
+                    const cb = document.getElementById(`cb-${safeId}`);
+                    if (cb) cb.checked = loadedPkgList.has(p);
+                });
+                // Update Select All state
+                const allSelected = monetApps.every(pkg => loadedPkgList.has(pkg));
+                document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
+                document.getElementById('icon-select-all').innerHTML = allSelected ? `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>` : `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
+            }
+
+            closeManualModal();
+        }
+
+        async function updateManualLabels() {
+            if (!window.manualAppLabels) window.manualAppLabels = {};
+
+            const batchSize = 20;
+            for (let i = 0; i < allThirdPartyApps.length; i += batchSize) {
+                // Stop if modal closed? Optional optimization.
+                if (document.getElementById('manual-add-modal').style.display === 'none') break;
+
+                const batch = allThirdPartyApps.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (pkg) => {
+                    if (window.manualAppLabels[pkg]) return; // Already loaded
+
+                    let appName = null;
+                    try {
+                        if (typeof $packageManager !== 'undefined') {
+                            const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
+                            if (appInfo) appName = appInfo.getLabel().toString();
+                        } else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
+                            const info = await ksu.getPackagesInfo(pkg);
+                            if (info && info.appLabel) appName = info.appLabel;
+                        }
+                    } catch (e) { }
+
+                    if (appName) {
+                        window.manualAppLabels[pkg] = appName;
+                        // Directly update DOM if exists (for performance, avoid full render)
+                        const safeId = pkg.replace(/\./g, '_');
+                        const el = document.getElementById(`manual-name-${safeId}`);
+                        if (el) el.innerText = appName;
+                    }
+                }));
+                // Yield
+                await new Promise(r => setTimeout(r, 10));
+            }
         }
 
         window.onload = initData;
