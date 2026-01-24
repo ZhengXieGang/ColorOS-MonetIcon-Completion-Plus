@@ -1,90 +1,131 @@
 #!/system/bin/sh
+# scan_monet.sh - Sequential Incremental Scanner
 
-# Logging Setup
-LOG_FILE="/data/adb/moneticon_tmp/scan.log"
-RESULT_FILE="/data/adb/moneticon_tmp/moneticon_apps"
+# === 1. Environment Setup ===
+TMP_DIR="/data/adb/moneticon_tmp"
+PROGRESS_FILE="$TMP_DIR/progress.json"
+RESULT_FILE="$TMP_DIR/moneticon_apps"
+SKIP_FILE="$TMP_DIR/skip_list.txt"
+LOG_FILE="$TMP_DIR/scan.log"
 
-# Ensure clean state
-echo "正在初始化扫描..." > "$LOG_FILE"
-echo "" > "$RESULT_FILE"
+# Clean & Init
+mkdir -p "$TMP_DIR"
+# Do NOT delete RESULT_FILE here (Managed by UI Refresh)
+# Cleanup previous run temp files if any
+rm -f "$PROGRESS_FILE" "$SKIP_FILE"
 
-# === 1. Prepare AAPT2 ===
-# MODDIR corresponds to the directory where this script resides.
+# Trap signals
+cleanup() {
+    rm -f "$PROGRESS_FILE" "$SKIP_FILE"
+    exit 0
+}
+trap cleanup EXIT INT TERM
+
+# === 2. Configuration ===
 MODDIR=${0%/*}
-# AAPT binaries are expected in webroot/aapt2/
 AAPT_DIR="$MODDIR/webroot/aapt2"
+BLACKLIST_FILE="$MODDIR/webroot/blacklist"
 
-# Detect Architecture
+# Architecture Check
 ABI=$(getprop ro.product.cpu.abi)
 if echo "$ABI" | grep -q "arm64"; then
     AAPT_BIN="aapt2-arm64-v8a"
 else
-    # Fallback to 32-bit (v7a) for others, assuming mostly arm devices
     AAPT_BIN="aapt2-armeabi-v7a"
 fi
-
 AAPT="$AAPT_DIR/$AAPT_BIN"
-
-# Validation
-if [ ! -f "$AAPT" ]; then
-    echo "错误: 未找到 AAPT2 二进制文件: $AAPT" >> "$LOG_FILE"
-    echo "DONE" >> "$LOG_FILE"
-    exit 1
+if [ -f "$AAPT" ]; then
+    chmod +x "$AAPT"
 fi
 
-chmod +x "$AAPT"
-echo "引擎: $AAPT_BIN" >> "$LOG_FILE"
+# === 3. Incremental Logic Setup ===
+echo -n "" > "$SKIP_FILE"
 
-# === 2. Fetch App List ===
-echo "正在获取应用列表..." >> "$LOG_FILE"
-# Format: package:/data/app/~~.../base.apk=com.example
+# Load existing results (if file exists)
+if [ -f "$RESULT_FILE" ]; then
+    cat "$RESULT_FILE" >> "$SKIP_FILE"
+fi
+# Load blacklist (if exists)
+if [ -f "$BLACKLIST_FILE" ]; then
+    cat "$BLACKLIST_FILE" >> "$SKIP_FILE"
+    # Ensure blacklist items are removed from result count calculation below?
+    # No, skip file is just for skipping scan.
+fi
+
+# Ensure unique entries for fast grep
+sort -u "$SKIP_FILE" -o "$SKIP_FILE"
+
+# Initialize Counters
+TOTAL=0
+CURRENT=0
+FOUND=0
+if [ -f "$RESULT_FILE" ]; then
+    FOUND=$(grep -c . "$RESULT_FILE")
+fi
+
+echo "正在获取应用列表..." > "$LOG_FILE"
 RAW_LIST=$(pm list packages -f -3)
 TOTAL=$(echo "$RAW_LIST" | grep -c "package:")
-CURRENT=0
 
-echo "开始深度扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
+echo "开始扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
 
-# === 3. Scanning Loop ===
-echo "$RAW_LIST" | while read -r line; do
-    # Skip empty lines
+# === 4. Sequential Scan Loop ===
+IFS=$'\n'
+for line in $RAW_LIST; do
+    unset IFS
     [ -z "$line" ] && continue
     
     # Parse line: package:PATH=PKG
     temp=${line#package:}
     apk_path=${temp%=*}
     pkg_name=${temp##*=}
+    
+    if [ -z "$apk_path" ] || [ -z "$pkg_name" ]; then continue; fi
 
-    if [ -z "$apk_path" ] || [ -z "$pkg_name" ]; then
+    CURRENT=$((CURRENT + 1))
+    
+    # --- Check Logic ---
+    # 0. Incremental Skip
+    if grep -F -x -q "$pkg_name" "$SKIP_FILE"; then
+        # Already processed or blacklisted
+        # We don't increment FOUND here because we want to count *new* findings?
+        # Or do we want to show total valid apps?
+        # The UI shows "Found: X". If we skip existing results, FOUND stays at initial value.
+        # This is correct.
+        
+        # Update Progress Periodically (every 10 skipped items to be fast)
+        if [ $((CURRENT % 10)) -eq 0 ]; then
+            echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+        fi
         continue
     fi
 
-    CURRENT=$((CURRENT + 1))
-
-    # --- Analysis Logic ---
-    is_supported=false
-
-    # Step 1: Get Icon Path from Badging
-    # Output line example: application: label='App Name' icon='res/mipmap-anydpi-v26/ic_launcher.xml'
-    icon_path=$($AAPT dump badging "$apk_path" 2>/dev/null | grep "application: label" | sed -n "s/.*icon='\([^']*\)'.*/\1/p")
-    
-    # Only proceed if we found an XML icon (Adaptive Icons are usually XML)
-    if [[ "$icon_path" == *.xml ]]; then
-        # Step 2: Dump XML Tree and search for 'monochrome'
-        # This confirms if the adaptive icon has a monochrome layer defined
-        if $AAPT dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q "monochrome"; then
-            is_supported=true
+    # 1. Zip Check
+    if unzip -l "$apk_path" 2>/dev/null | grep -q "res/.*-v26"; then
+        # 2. Badging
+        output=$("$AAPT" dump badging "$apk_path" 2>/dev/null)
+        icon_path=$(echo "$output" | grep "application: label" | sed -n "s/.*icon='\([^']*\)'.*/\1/p")
+        
+        if [[ "$icon_path" == *.xml ]]; then
+            # 3. XML Tree
+            if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i "monochrome"; then
+                echo "$pkg_name" >> "$RESULT_FILE"
+                FOUND=$((FOUND + 1))
+            fi
         fi
     fi
-
-    if [ "$is_supported" = true ]; then
-        echo "$pkg_name" >> "$RESULT_FILE"
-        # Optional: Log finding
-        # echo "Found: $pkg_name" >> "$LOG_FILE"
+    
+    # Update Progress (Every 5 processed items)
+    if [ $((CURRENT % 5)) -eq 0 ]; then
+        echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
     fi
-
-    # Progress Update
-    echo "PROGRESS:$CURRENT/$TOTAL:$pkg_name" >> "$LOG_FILE"
 done
+
+# Final Update
+echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"Completed\"}" > "$PROGRESS_FILE.tmp"
+mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
 
 echo "扫描完成。" >> "$LOG_FILE"
 echo "DONE" >> "$LOG_FILE"
