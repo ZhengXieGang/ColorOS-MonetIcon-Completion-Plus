@@ -1,29 +1,22 @@
 #!/system/bin/sh
-# scan_monet.sh - Filesystem Signaling Version (Deadlock Proof)
+# scan_monet.sh - Sequential Incremental Scanner
 
 # === 1. Environment Setup ===
 TMP_DIR="/data/adb/moneticon_tmp"
-LOCK_FILE="$TMP_DIR/scan.lock"
 PROGRESS_FILE="$TMP_DIR/progress.json"
 RESULT_FILE="$TMP_DIR/moneticon_apps"
-PIPE_FILE="$TMP_DIR/worker.pipe"
-# Tracker directory for counting progress
-TRACKER_DIR="$TMP_DIR/tracker"
+SKIP_FILE="$TMP_DIR/skip_list.txt"
+LOG_FILE="$TMP_DIR/scan.log"
 
 # Clean & Init
-rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
-mkdir -p "$TRACKER_DIR"
-touch "$LOCK_FILE"
-# Clear result file
-echo -n "" > "$RESULT_FILE"
+# Do NOT delete RESULT_FILE here (Managed by UI Refresh)
+# Cleanup previous run temp files if any
+rm -f "$PROGRESS_FILE" "$SKIP_FILE"
 
 # Trap signals
 cleanup() {
-    # Kill descendants
-    pkill -P $$ 2>/dev/null
-    rm -f "$PIPE_FILE" "$LOCK_FILE"
-    rm -rf "$TRACKER_DIR"
+    rm -f "$PROGRESS_FILE" "$SKIP_FILE"
     exit 0
 }
 trap cleanup EXIT INT TERM
@@ -31,6 +24,7 @@ trap cleanup EXIT INT TERM
 # === 2. Configuration ===
 MODDIR=${0%/*}
 AAPT_DIR="$MODDIR/webroot/aapt2"
+BLACKLIST_FILE="$MODDIR/webroot/blacklist"
 
 # Architecture Check
 ABI=$(getprop ro.product.cpu.abi)
@@ -40,135 +34,99 @@ else
     AAPT_BIN="aapt2-armeabi-v7a"
 fi
 AAPT="$AAPT_DIR/$AAPT_BIN"
-# Ensure executable
-if [ ! -f "$AAPT" ]; then
-    # Fallback or error logging? 
-    # For now assume it exists as per previous steps, but ensure +x
-    true
+if [ -f "$AAPT" ]; then
+    chmod +x "$AAPT"
 fi
-chmod +x "$AAPT"
 
-# CPU Cores
-CPU_CORES=$(grep -c ^processor /proc/cpuinfo 2>/dev/null)
-[ -z "$CPU_CORES" ] && CPU_CORES=4
-THREADS=$CPU_CORES
-[ "$THREADS" -gt 8 ] && THREADS=8
+# === 3. Incremental Logic Setup ===
+echo -n "" > "$SKIP_FILE"
 
-# === 3. Token Bucket (Concurrency Control) ===
-# We still keep the token bucket to control CPU load, 
-# but we don't use pipes for status data.
-mkfifo "$PIPE_FILE"
-exec 3<>"$PIPE_FILE"
-for i in $(seq 1 $THREADS); do echo >&3; done
+# Load existing results (if file exists)
+if [ -f "$RESULT_FILE" ]; then
+    cat "$RESULT_FILE" >> "$SKIP_FILE"
+fi
+# Load blacklist (if exists)
+if [ -f "$BLACKLIST_FILE" ]; then
+    cat "$BLACKLIST_FILE" >> "$SKIP_FILE"
+    # Ensure blacklist items are removed from result count calculation below?
+    # No, skip file is just for skipping scan.
+fi
 
-# === 4. Progress Monitor (Filesystem Polling) ===
-# Independent background process, wakes up every second.
-(
-    total=0
-    current=0
-    found=0
-    
-    # Wait for Total Count
-    while [ ! -f "$TMP_DIR/total_count" ]; do sleep 0.1; done
-    total=$(cat "$TMP_DIR/total_count")
+# Ensure unique entries for fast grep
+sort -u "$SKIP_FILE" -o "$SKIP_FILE"
 
-    while true; do
-        # 1. Check for Done Signal
-        if [ -f "$TMP_DIR/scan_done" ]; then
-            # Final flush
-            current=$total
-            if [ -f "$RESULT_FILE" ]; then
-                found=$(grep -c . "$RESULT_FILE")
-            fi
-            echo "{\"total\": $total, \"current\": $current, \"found\": $found}" > "$PROGRESS_FILE.tmp"
-            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
-            break
-        fi
+# Initialize Counters
+TOTAL=0
+CURRENT=0
+FOUND=0
+if [ -f "$RESULT_FILE" ]; then
+    FOUND=$(grep -c . "$RESULT_FILE")
+fi
 
-        # 2. Count Files (Fastest way on Linux for large dirs: ls -f)
-        # ls -f lists directory without sorting. grep -c -v excludes . and ..
-        current=$(ls -f "$TRACKER_DIR" 2>/dev/null | grep -c -v '^\.\.\?$')
-        
-        # 3. Count Results
-        if [ -f "$RESULT_FILE" ]; then
-            found=$(grep -c . "$RESULT_FILE")
-        else
-            found=0
-        fi
-
-        # 4. Update JSON
-        echo "{\"total\": $total, \"current\": $current, \"found\": $found}" > "$PROGRESS_FILE.tmp"
-        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
-        
-        # 5. Sleep to save IO
-        sleep 1
-    done
-) &
-MONITOR_PID=$!
-
-# === 5. Worker Logic ===
-check_app() {
-    local apk_path="$1"
-    local pkg_name="$2"
-    local is_found=0
-
-    # Step 1: Zip Check (Fastest)
-    if unzip -l "$apk_path" 2>/dev/null | grep -q "res/.*-v26"; then
-        # Step 2: Badging (Entry verification)
-        local output=$("$AAPT" dump badging "$apk_path" 2>/dev/null)
-        local icon_path=$(echo "$output" | grep "application: label" | sed -n "s/.*icon='\([^']*\)'.*/\1/p")
-        
-        if [[ "$icon_path" == *.xml ]]; then
-            # Step 3: XML Tree (Deep check)
-            if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i "monochrome"; then
-                echo "$pkg_name" >> "$RESULT_FILE"
-                is_found=1
-            fi
-        fi
-    fi
-    
-    # Signal Completion via Filesystem
-    # This never blocks!
-    touch "$TRACKER_DIR/$pkg_name"
-}
-
-# === 6. Main Dispatcher ===
-echo "Init list..."
+echo "正在获取应用列表..." > "$LOG_FILE"
 RAW_LIST=$(pm list packages -f -3)
+TOTAL=$(echo "$RAW_LIST" | grep -c "package:")
 
-# Write Total Count for Monitor
-TOTAL_COUNT=$(echo "$RAW_LIST" | grep -c "package:")
-echo "$TOTAL_COUNT" > "$TMP_DIR/total_count"
+echo "开始扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
 
-# Parallel Loop
+# === 4. Sequential Scan Loop ===
 IFS=$'\n'
 for line in $RAW_LIST; do
     unset IFS
     [ -z "$line" ] && continue
     
+    # Parse line: package:PATH=PKG
     temp=${line#package:}
     apk_path=${temp%=*}
     pkg_name=${temp##*=}
-    [ -z "$apk_path" ] && continue
+    
+    if [ -z "$apk_path" ] || [ -z "$pkg_name" ]; then continue; fi
 
-    # Acquire Token (Block if full)
-    read -u 3 token
+    CURRENT=$((CURRENT + 1))
+    
+    # --- Check Logic ---
+    # 0. Incremental Skip
+    if grep -F -x -q "$pkg_name" "$SKIP_FILE"; then
+        # Already processed or blacklisted
+        # We don't increment FOUND here because we want to count *new* findings?
+        # Or do we want to show total valid apps?
+        # The UI shows "Found: X". If we skip existing results, FOUND stays at initial value.
+        # This is correct.
+        
+        # Update Progress Periodically (every 10 skipped items to be fast)
+        if [ $((CURRENT % 10)) -eq 0 ]; then
+            echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+        fi
+        continue
+    fi
 
-    # Spawn Worker
-    (
-        check_app "$apk_path" "$pkg_name"
-        # Return Token
-        echo >&3
-    ) &
+    # 1. Direct AAPT Check (No unzip pre-check)
+    output=$("$AAPT" dump badging "$apk_path" 2>/dev/null)
+    
+    # Robust icon path extraction (filter line first, then extract)
+    # This handles cases where badging output format might vary
+    icon_path=$(echo "$output" | grep "application:" | sed -n "s/.*icon='\([^']*\)'.*/\1/p" | head -n 1)
+    
+    if [[ "$icon_path" == *.xml ]]; then
+        # 2. XML Tree Deep Check
+        # Check for 'monochrome' OR 'themed_icon'
+        if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i -E "monochrome|themed_icon"; then
+            echo "$pkg_name" >> "$RESULT_FILE"
+            FOUND=$((FOUND + 1))
+        fi
+    fi
+    
+    # Update Progress (Every 5 processed items)
+    if [ $((CURRENT % 5)) -eq 0 ]; then
+        echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+    fi
 done
 
-# Wait for workers
-wait
+# Final Update
+echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"Completed\"}" > "$PROGRESS_FILE.tmp"
+mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
 
-# Signal Monitor to stop
-touch "$TMP_DIR/scan_done"
-wait $MONITOR_PID
-
-# Cleanup
-rm -f "$LOCK_FILE" "$PIPE_FILE" "$TMP_DIR/total_count" "$TMP_DIR/scan_done"
-rm -rf "$TRACKER_DIR"
+echo "扫描完成。" >> "$LOG_FILE"
+echo "DONE" >> "$LOG_FILE"

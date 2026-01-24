@@ -724,13 +724,21 @@
     <!-- 图标管理界面 -->
     <div id="icon-manager-view" class="container" style="display:none;">
         <div class="header">
-            <button class="btn btn-tonal" onclick="backToMain()"
-                style="width:auto; padding:8px 20px; margin-bottom:12px;">
-                ← 返回
-            </button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <button class="btn btn-tonal" onclick="backToMain()" style="width:auto; padding:8px 20px; margin:0;">
+                    ← 返回
+                </button>
+                <button class="btn btn-tonal" onclick="refreshScan()" style="width:auto; padding:8px 16px; margin:0;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"
+                        style="margin-right:4px; vertical-align:text-bottom;">
+                        <path
+                            d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                    </svg>
+                    刷新列表
+                </button>
+            </div>
             <h1>莫奈图标管理</h1>
             <p>Monet Icon Manager</p>
-
         </div>
 
         <div class="card">
@@ -1345,7 +1353,6 @@
         function pollScanProgress() {
             if (scanTimer) clearInterval(scanTimer);
 
-            // Poll slightly faster as JSON is cheap to read
             scanTimer = setInterval(async () => {
                 if (!isScanning) {
                     clearInterval(scanTimer);
@@ -1353,22 +1360,25 @@
                 }
 
                 try {
-                    // Check if process finished first (via lock file absence or log DONE?)
-                    // The script trap removes lock file on exit.
-                    // But we can just check if process is running OR check log for DONE.
-                    // Let's stick to parsing progress.json stats for UI, 
-                    // and check log/status for completion signal.
+                    // 1. Check for completion signal in log (Definitive)
+                    const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
+                    if (logRes.errno === 0) {
+                        const line = logRes.stdout.trim();
+                        if (line === "DONE" || line.includes("扫描完成")) {
+                            clearInterval(scanTimer);
+                            isScanning = false;
+                            document.getElementById('scan-progress-wrap').style.display = 'none';
+                            await loadScanResults();
+                            return;
+                        }
+                    }
 
-                    // Actually, simpler: Read JSON. If total == current, it's done?
-                    // No, "DONE" signal in log is definitive.
-                    // Let's read both or just trust progress.json?
-                    // The script writes total/current/found.
-
+                    // 2. Read Progress JSON for UI
                     const res = await exec(`cat "${PROGRESS_JSON}"`);
                     if (res.errno === 0 && res.stdout.trim()) {
                         try {
-                            const data = JSON.parse(res.stdout); // {total, current, found}
-                            const { total, current, found } = data;
+                            const data = JSON.parse(res.stdout); // {total, current, found, pkg}
+                            const { total, current, found, pkg } = data;
 
                             if (total > 0) {
                                 const percent = (current / total) * 100;
@@ -1376,26 +1386,12 @@
                                 document.getElementById('scan-progress-wrap').style.display = 'block';
 
                                 const fileEl = document.getElementById('scan-file');
-                                if (fileEl) fileEl.innerText = `已扫描: ${current}/${total} | 发现: ${found}`;
-                            }
-
-                            // Completion Check:
-                            // We can check if `cat scan.log` says DONE, or if current == total for X seconds?
-                            // Better: Check scan.log for definitive "DONE" signal as before to trigger next step.
-                            const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
-                            if (logRes.errno === 0) {
-                                const line = logRes.stdout.trim();
-                                if (line === "DONE") {
-                                    clearInterval(scanTimer);
-                                    isScanning = false;
-                                    document.getElementById('scan-progress-wrap').style.display = 'none';
-                                    await loadScanResults();
+                                if (fileEl) {
+                                    const displayPkg = pkg ? `| ${pkg}` : "";
+                                    fileEl.innerText = `已扫描: ${current}/${total} | 发现: ${found} ${displayPkg}`;
                                 }
                             }
-
-                        } catch (parseErr) {
-                            // JSON might be half-written, ignore
-                        }
+                        } catch (e) { }
                     }
                 } catch (e) {
                     console.log("轮询出错:", e);
@@ -1569,14 +1565,30 @@
             // 终止可能存在的扫描进程
             await exec(`pkill -f "scan_monet.sh"`);
 
-            // 删除结果文件（响应用户需求：如果用户点了返回...删除moneticon_apps文件）
-            await exec(`rm -f "${MONET_APPS_FILE}"`);
+            // REMOVED: Deleting result file (Now handled by Refresh button)
 
             // Hide FAB
             document.getElementById('fab-save').style.display = 'none';
 
             document.getElementById('icon-manager-view').style.display = 'none';
             document.querySelector('.container').style.display = 'block';
+        }
+
+        async function refreshScan() {
+            if (isScanning) return;
+            if (!confirm("确定要重新扫描吗？这将清除现有缓存。")) return;
+
+            document.getElementById('app-list').innerHTML = '';
+            document.getElementById('scan-status').innerHTML = `
+                <div class="spinner"></div>
+                <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
+            `;
+
+            // Delete result file to force full scan
+            await exec(`rm -f "${MONET_APPS_FILE}"`);
+
+            // Start Scan
+            startScan();
         }
 
         // Remove restored functions as they are replaced by selection logic
