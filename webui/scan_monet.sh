@@ -41,15 +41,13 @@ fi
 # === 3. Incremental Logic Setup ===
 echo -n "" > "$SKIP_FILE"
 
-# Load existing results (if file exists)
+# Load existing results (if file exists), filter empty lines
 if [ -f "$RESULT_FILE" ]; then
-    cat "$RESULT_FILE" >> "$SKIP_FILE"
+    grep -v '^$' "$RESULT_FILE" >> "$SKIP_FILE" 2>/dev/null
 fi
-# Load blacklist (if exists)
+# Load blacklist (if exists), filter empty lines
 if [ -f "$BLACKLIST_FILE" ]; then
-    cat "$BLACKLIST_FILE" >> "$SKIP_FILE"
-    # Ensure blacklist items are removed from result count calculation below?
-    # No, skip file is just for skipping scan.
+    grep -v '^$' "$BLACKLIST_FILE" >> "$SKIP_FILE" 2>/dev/null
 fi
 
 # Ensure unique entries for fast grep
@@ -93,11 +91,9 @@ for line in $RAW_LIST; do
         # The UI shows "Found: X". If we skip existing results, FOUND stays at initial value.
         # This is correct.
         
-        # Update Progress Periodically (every 10 skipped items to be fast)
-        if [ $((CURRENT % 10)) -eq 0 ]; then
-            echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
-            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
-        fi
+        # Real-time Progress Update
+        echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
         continue
     fi
 
@@ -117,11 +113,9 @@ for line in $RAW_LIST; do
         fi
     fi
     
-    # Update Progress (Every 5 processed items)
-    if [ $((CURRENT % 5)) -eq 0 ]; then
-        echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
-        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
-    fi
+    # Real-time Progress Update
+    echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"
+    mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
 done
 
 # Final Update
