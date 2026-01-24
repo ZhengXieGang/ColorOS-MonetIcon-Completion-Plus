@@ -1298,41 +1298,39 @@
             // 切换到图标管理视图
             document.querySelector('.container').style.display = 'none';
             document.getElementById('icon-manager-view').style.display = 'block';
+
+            // Hide FAB initially until interaction or load?
+            // User: "勾选任意应用后...出现"
+            // If we load existing checks, should we show FAB? Maybe not, until user changes something.
+            // But let's verify. I'll hide it initially.
             document.getElementById('fab-save').style.display = 'none';
 
-            // 重置 UI (Reset UI to initial 'Scanning...' state is handled in startScan)
+            // 重置 UI
             const statusEl = document.getElementById('scan-status');
             statusEl.style.display = 'block';
+            statusEl.innerHTML = `
+                <div class="spinner"></div>
+                <p id="scan-msg" style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在扫描...</p>
+                <!-- 进度条 -->
+                <div id="scan-progress-wrap" class="scan-progress-wrap">
+                    <div id="scan-progress-bar" class="scan-progress-bar"></div>
+                </div>
+                <div id="scan-file" style="font-size:12px; color:var(--md-sys-color-outline); margin-top:8px; height:20px;"></div>
+
+            `;
             document.getElementById('app-list-container').style.display = 'none';
 
             // Load pkglist BEFORE scan
             await loadPkgList();
 
-            // Start Scan (Incremental)
-            startScan();
-        }
-
-        async function startScan() {
-            if (isScanning) return;
-
-            // UI Reset
-            document.getElementById('scan-status').innerHTML = `
-                <div class="spinner"></div>
-                <p id="scan-msg" style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在扫描...</p>
-                <div id="scan-progress-wrap" class="scan-progress-wrap">
-                    <div id="scan-progress-bar" class="scan-progress-bar"></div>
-                </div>
-                <div id="scan-file" style="font-size:12px; color:var(--md-sys-color-outline); margin-top:8px; height:20px;"></div>
-            `;
-            document.getElementById('scan-status').style.display = 'block';
-            document.getElementById('app-list-container').style.display = 'none';
-
+            // 开始后台扫描
             try {
                 // 赋予权限并创建目录
                 await exec(`chmod +x "${SCAN_SCRIPT}"`);
                 await exec(`mkdir -p "${CACHE_ROOT}"`);
 
-                // DO NOT delete MONET_APPS_FILE here! (Incremental scan)
+                // 清理旧日志和结果文件
+                await exec(`rm -f "${MONET_APPS_FILE}"`);
                 await exec(`echo "准备就绪" > "${SCAN_LOG}"`);
 
                 // 启动后台进程 (nohup ... &)
@@ -1343,171 +1341,171 @@
                 pollScanProgress();
 
             } catch (e) {
-                document.getElementById('scan-status').innerHTML = `
+                statusEl.innerHTML = `
                     <p style="color:var(--md-sys-color-error); text-align:center;">启动失败: ${e.message}</p>
                     <button class="btn btn-tonal" onclick="backToMain()" style="margin-top:16px;">返回</button>
                 `;
             }
+        }
 
+        const PROGRESS_JSON = "/data/adb/moneticon_tmp/progress.json";
 
-            const PROGRESS_JSON = "/data/adb/moneticon_tmp/progress.json";
+        function pollScanProgress() {
+            if (scanTimer) clearInterval(scanTimer);
 
-            function pollScanProgress() {
-                if (scanTimer) clearInterval(scanTimer);
+            scanTimer = setInterval(async () => {
+                if (!isScanning) {
+                    clearInterval(scanTimer);
+                    return;
+                }
 
-                scanTimer = setInterval(async () => {
-                    if (!isScanning) {
-                        clearInterval(scanTimer);
-                        return;
+                try {
+                    // 1. Check for completion signal in log (Definitive)
+                    const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
+                    if (logRes.errno === 0) {
+                        const line = logRes.stdout.trim();
+                        if (line === "DONE" || line.includes("扫描完成")) {
+                            clearInterval(scanTimer);
+                            isScanning = false;
+                            document.getElementById('scan-progress-wrap').style.display = 'none';
+                            await loadScanResults();
+                            return;
+                        }
                     }
 
-                    try {
-                        // 1. Check for completion signal in log (Definitive)
-                        const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
-                        if (logRes.errno === 0) {
-                            const line = logRes.stdout.trim();
-                            if (line === "DONE" || line.includes("扫描完成")) {
-                                clearInterval(scanTimer);
-                                isScanning = false;
-                                document.getElementById('scan-progress-wrap').style.display = 'none';
-                                await loadScanResults();
-                                return;
-                            }
-                        }
+                    // 2. Read Progress JSON for UI
+                    const res = await exec(`cat "${PROGRESS_JSON}"`);
+                    if (res.errno === 0 && res.stdout.trim()) {
+                        try {
+                            const data = JSON.parse(res.stdout); // {total, current, found, pkg}
+                            const { total, current, found, pkg } = data;
 
-                        // 2. Read Progress JSON for UI
-                        const res = await exec(`cat "${PROGRESS_JSON}"`);
-                        if (res.errno === 0 && res.stdout.trim()) {
-                            try {
-                                const data = JSON.parse(res.stdout); // {total, current, found, pkg}
-                                const { total, current, found, pkg } = data;
+                            if (total > 0) {
+                                const percent = (current / total) * 100;
+                                document.getElementById('scan-progress-bar').style.width = percent + '%';
+                                document.getElementById('scan-progress-wrap').style.display = 'block';
 
-                                if (total > 0) {
-                                    const percent = (current / total) * 100;
-                                    document.getElementById('scan-progress-bar').style.width = percent + '%';
-                                    document.getElementById('scan-progress-wrap').style.display = 'block';
-
-                                    const fileEl = document.getElementById('scan-file');
-                                    if (fileEl) {
-                                        const displayPkg = pkg ? `| ${pkg}` : "";
-                                        fileEl.innerText = `已扫描: ${current}/${total} | 发现: ${found} ${displayPkg}`;
-                                    }
+                                const fileEl = document.getElementById('scan-file');
+                                if (fileEl) {
+                                    const displayPkg = pkg ? `| ${pkg}` : "";
+                                    fileEl.innerText = `已扫描: ${current}/${total} | 发现: ${found} ${displayPkg}`;
                                 }
-                            } catch (e) { }
-                        }
-                    } catch (e) {
-                        console.log("轮询出错:", e);
+                            }
+                        } catch (e) { }
                     }
-                }, 300);
-            }
+                } catch (e) {
+                    console.log("轮询出错:", e);
+                }
+            }, 300);
+        }
 
-            async function stopScan() {
-                isScanning = false;
-                if (scanTimer) clearInterval(scanTimer);
+        async function stopScan() {
+            isScanning = false;
+            if (scanTimer) clearInterval(scanTimer);
 
-                // 尝试终止进程 (简单匹配脚本名)
-                await exec(`pkill -f "scan_monet.sh"`);
+            // 尝试终止进程 (简单匹配脚本名)
+            await exec(`pkill -f "scan_monet.sh"`);
 
-                document.getElementById('scan-status').innerHTML = `
+            document.getElementById('scan-status').innerHTML = `
                 <p style="color:var(--md-sys-color-error); margin-bottom:16px;">扫描已手动终止</p>
                 <button class="btn btn-tonal" onclick="openIconManager()">重新扫描</button>
                 <button class="btn btn-tonal" onclick="backToMain()" style="margin-left:8px;">返回</button>
             `;
-            }
+        }
 
-            // 替代原来的 displayAppList，改名为 loadScanResults 并调用 displayAppList
-            async function loadScanResults() {
-                // 读取扫描结果，把换行转为逗号
-                const appsRes = await exec(`cat "${MONET_APPS_FILE}" | tr '\\n' ','`);
+        // 替代原来的 displayAppList，改名为 loadScanResults 并调用 displayAppList
+        async function loadScanResults() {
+            // 读取扫描结果，把换行转为逗号
+            const appsRes = await exec(`cat "${MONET_APPS_FILE}" | tr '\\n' ','`);
 
-                // 即使没有结果，如果文件存在也作为结果处理（可能是真的没有支持的应用）
-                if (appsRes.errno !== 0) {
-                    document.getElementById('scan-status').innerHTML = `
+            // 即使没有结果，如果文件存在也作为结果处理（可能是真的没有支持的应用）
+            if (appsRes.errno !== 0) {
+                document.getElementById('scan-status').innerHTML = `
                     <p>读取结果失败</p>
                     <button class="btn btn-tonal" onclick="openIconManager()">重试</button>
                 `;
-                    return;
-                }
-
-                // 解析逻辑：用逗号分割
-                monetApps = appsRes.stdout.split(',').map(line => line.trim()).filter(line => line.length > 0);
-
-                // Sync loaded selection with scan results (optional: remove stale entries?)
-                // We keep stale entries in loadedPkgList in case user wants to persist them even if not found?
-                // "每次完成扫描后将结果和pkglist文件做对比,将包含的应用给默认勾选上" -> This is already handled by loadedPkgList logic in displayAppList.
-
-                displayAppList();
+                return;
             }
 
-            function toggleSelectAll() {
-                const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
-                const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
+            // 解析逻辑：用逗号分割
+            monetApps = appsRes.stdout.split(',').map(line => line.trim()).filter(line => line.length > 0);
 
-                const iconContainer = document.getElementById('icon-select-all');
-                const btnText = document.getElementById('text-select-all');
-                const isSelectAll = btnText.innerText === "全选";
+            // Sync loaded selection with scan results (optional: remove stale entries?)
+            // We keep stale entries in loadedPkgList in case user wants to persist them even if not found?
+            // "每次完成扫描后将结果和pkglist文件做对比,将包含的应用给默认勾选上" -> This is already handled by loadedPkgList logic in displayAppList.
 
-                if (isSelectAll) {
-                    // Select all visible
-                    monetApps.forEach(pkg => loadedPkgList.add(pkg));
-                    btnText.innerText = "取消全选";
-                    iconContainer.innerHTML = ICON_CLOSE_SVG;
-                } else {
-                    // Unselect all visible
-                    monetApps.forEach(pkg => loadedPkgList.delete(pkg));
-                    btnText.innerText = "全选";
-                    iconContainer.innerHTML = ICON_CHECK_SVG;
-                }
+            displayAppList();
+        }
 
-                // Update UI checkboxes
-                monetApps.forEach(pkg => {
-                    const safeId = pkg.replace(/\./g, '_');
-                    const cb = document.getElementById(`cb-${safeId}`);
-                    if (cb) cb.checked = isSelectAll;
-                });
+        function toggleSelectAll() {
+            const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
+            const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
 
-                onSelectionChange();
+            const iconContainer = document.getElementById('icon-select-all');
+            const btnText = document.getElementById('text-select-all');
+            const isSelectAll = btnText.innerText === "全选";
+
+            if (isSelectAll) {
+                // Select all visible
+                monetApps.forEach(pkg => loadedPkgList.add(pkg));
+                btnText.innerText = "取消全选";
+                iconContainer.innerHTML = ICON_CLOSE_SVG;
+            } else {
+                // Unselect all visible
+                monetApps.forEach(pkg => loadedPkgList.delete(pkg));
+                btnText.innerText = "全选";
+                iconContainer.innerHTML = ICON_CHECK_SVG;
             }
 
-            async function displayAppList() {
-                const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
-                const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
-                document.getElementById('scan-status').style.display = 'none';
-                document.getElementById('app-list-container').style.display = 'block';
-                document.getElementById('app-count').innerText = monetApps.length;
+            // Update UI checkboxes
+            monetApps.forEach(pkg => {
+                const safeId = pkg.replace(/\./g, '_');
+                const cb = document.getElementById(`cb-${safeId}`);
+                if (cb) cb.checked = isSelectAll;
+            });
 
-                const appListDiv = document.getElementById('app-list');
-                appListDiv.innerHTML = '';
+            onSelectionChange();
+        }
 
-                if (monetApps.length === 0) {
-                    appListDiv.innerHTML = `
+        async function displayAppList() {
+            const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
+            const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
+            document.getElementById('scan-status').style.display = 'none';
+            document.getElementById('app-list-container').style.display = 'block';
+            document.getElementById('app-count').innerText = monetApps.length;
+
+            const appListDiv = document.getElementById('app-list');
+            appListDiv.innerHTML = '';
+
+            if (monetApps.length === 0) {
+                appListDiv.innerHTML = `
                     <div style="text-align:center; padding:40px 0; color:var(--md-sys-color-outline);">
                         未找到支持的应用
                     </div>
                  `;
-                    return;
-                }
+                return;
+            }
 
-                monetApps.forEach(pkg => {
-                    const isChecked = loadedPkgList.has(pkg);
-                    const safeId = pkg.replace(/\./g, '_');
+            monetApps.forEach(pkg => {
+                const isChecked = loadedPkgList.has(pkg);
+                const safeId = pkg.replace(/\./g, '_');
 
-                    const appItem = document.createElement('div');
-                    appItem.className = 'app-item';
-                    appItem.id = `item-${safeId}`;
-                    // Toggle on item click
-                    appItem.onclick = (e) => {
-                        // Avoid double toggle if clicking checkbox directly
-                        if (e.target.tagName !== 'INPUT') {
-                            const cb = document.getElementById(`cb-${safeId}`);
-                            if (cb) {
-                                cb.checked = !cb.checked;
-                                onAppCheck(pkg, cb.checked);
-                            }
+                const appItem = document.createElement('div');
+                appItem.className = 'app-item';
+                appItem.id = `item-${safeId}`;
+                // Toggle on item click
+                appItem.onclick = (e) => {
+                    // Avoid double toggle if clicking checkbox directly
+                    if (e.target.tagName !== 'INPUT') {
+                        const cb = document.getElementById(`cb-${safeId}`);
+                        if (cb) {
+                            cb.checked = !cb.checked;
+                            onAppCheck(pkg, cb.checked);
                         }
-                    };
+                    }
+                };
 
-                    appItem.innerHTML = `
+                appItem.innerHTML = `
                     <div style="margin-right:16px; display:flex; align-items:center;">
                          <input type="checkbox" id="cb-${safeId}" 
                              style="width:20px; height:20px; accent-color:var(--md-sys-color-primary);"
@@ -1519,93 +1517,93 @@
                         <div class="app-package" style="margin-top:2px;">${pkg}</div>
                     </div>
                 `;
-                    appListDiv.appendChild(appItem);
-                });
+                appListDiv.appendChild(appItem);
+            });
 
-                // Update "Select All" button state based on current selection
-                const allSelected = monetApps.length > 0 && monetApps.every(pkg => loadedPkgList.has(pkg));
-                document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
-                document.getElementById('icon-select-all').innerHTML = allSelected ? ICON_CLOSE_SVG : ICON_CHECK_SVG;
+            // Update "Select All" button state based on current selection
+            const allSelected = monetApps.length > 0 && monetApps.every(pkg => loadedPkgList.has(pkg));
+            document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
+            document.getElementById('icon-select-all').innerHTML = allSelected ? ICON_CLOSE_SVG : ICON_CHECK_SVG;
 
-                // 后台异步获取应用名称
-                updateAppLabels();
+            // 后台异步获取应用名称
+            updateAppLabels();
+        }
+
+        async function updateAppLabels() {
+            for (const pkg of monetApps) {
+                let appName = pkg;
+                try {
+                    // 1. 尝试 $packageManager
+                    if (typeof $packageManager !== 'undefined') {
+                        const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
+                        if (appInfo) appName = appInfo.getLabel().toString();
+                    }
+                    // 2. 尝试 KSU API
+                    else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
+                        const info = await ksu.getPackagesInfo(pkg);
+                        if (info && info.appLabel) appName = info.appLabel;
+                    }
+                } catch (e) { }
+
+                // Update DOM
+                const safeId = pkg.replace(/\./g, '_');
+                const nameEl = document.getElementById(`name-${safeId}`);
+                // Removed onclick update as item onclick is now handled in displayAppList
+                if (nameEl) nameEl.innerText = appName;
+
+                continue;
+
+                // (Old dumpsys logic skipped for brevity, maintained from original structure if needed but assuming KSU/WebView)
             }
+        }
 
-            async function updateAppLabels() {
-                for (const pkg of monetApps) {
-                    let appName = pkg;
-                    try {
-                        // 1. 尝试 $packageManager
-                        if (typeof $packageManager !== 'undefined') {
-                            const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
-                            if (appInfo) appName = appInfo.getLabel().toString();
-                        }
-                        // 2. 尝试 KSU API
-                        else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
-                            const info = await ksu.getPackagesInfo(pkg);
-                            if (info && info.appLabel) appName = info.appLabel;
-                        }
-                    } catch (e) { }
+        async function backToMain() {
+            // 停止扫描计时器
+            isScanning = false;
+            if (scanTimer) clearInterval(scanTimer);
 
-                    // Update DOM
-                    const safeId = pkg.replace(/\./g, '_');
-                    const nameEl = document.getElementById(`name-${safeId}`);
-                    // Removed onclick update as item onclick is now handled in displayAppList
-                    if (nameEl) nameEl.innerText = appName;
+            // 终止可能存在的扫描进程
+            await exec(`pkill -f "scan_monet.sh"`);
 
-                    continue;
+            // REMOVED: Deleting result file (Now handled by Refresh button)
 
-                    // (Old dumpsys logic skipped for brevity, maintained from original structure if needed but assuming KSU/WebView)
-                }
-            }
+            // Hide FAB
+            document.getElementById('fab-save').style.display = 'none';
 
-            async function backToMain() {
-                // 停止扫描计时器
-                isScanning = false;
-                if (scanTimer) clearInterval(scanTimer);
+            document.getElementById('icon-manager-view').style.display = 'none';
+            document.querySelector('.container').style.display = 'block';
+        }
 
-                // 终止可能存在的扫描进程
-                await exec(`pkill -f "scan_monet.sh"`);
+        async function refreshScan() {
+            if (isScanning) return;
+            if (!confirm("确定要重新扫描吗？这将清除现有缓存。")) return;
 
-                // REMOVED: Deleting result file (Now handled by Refresh button)
-
-                // Hide FAB
-                document.getElementById('fab-save').style.display = 'none';
-
-                document.getElementById('icon-manager-view').style.display = 'none';
-                document.querySelector('.container').style.display = 'block';
-            }
-
-            async function refreshScan() {
-                if (isScanning) return;
-                if (!confirm("确定要重新扫描吗？这将清除现有缓存。")) return;
-
-                document.getElementById('app-list').innerHTML = '';
-                document.getElementById('scan-status').innerHTML = `
+            document.getElementById('app-list').innerHTML = '';
+            document.getElementById('scan-status').innerHTML = `
                 <div class="spinner"></div>
                 <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
             `;
 
-                // Delete result file to force full scan
-                await exec(`rm -f "${MONET_APPS_FILE}"`);
+            // Delete result file to force full scan
+            await exec(`rm -f "${MONET_APPS_FILE}"`);
 
-                // Start Scan
-                startScan();
-            }
+            // Start Scan
+            openIconManager();
+        }
 
-            // Remove restored functions as they are replaced by selection logic
+        // Remove restored functions as they are replaced by selection logic
 
-            function showDialog(title, content, showCancel, onConfirm) {
-                const overlay = document.createElement('div');
-                overlay.className = 'dialog-overlay';
+        function showDialog(title, content, showCancel, onConfirm) {
+            const overlay = document.createElement('div');
+            overlay.className = 'dialog-overlay';
 
-                const cancelBtn = showCancel ? `
+            const cancelBtn = showCancel ? `
                 <button class="dialog-btn dialog-btn-cancel" onclick="this.closest('.dialog-overlay').remove()">
                     取消
                 </button>
             ` : '';
 
-                overlay.innerHTML = `
+            overlay.innerHTML = `
                 <div class="dialog">
                     <div class="dialog-title">${title}</div>
                     <div class="dialog-content">${content}</div>
@@ -1618,101 +1616,101 @@
                 </div>
             `;
 
-                document.body.appendChild(overlay);
+            document.body.appendChild(overlay);
 
-                document.getElementById('dialog-confirm').onclick = () => {
-                    overlay.remove();
-                    if (onConfirm) onConfirm();
-                };
+            document.getElementById('dialog-confirm').onclick = () => {
+                overlay.remove();
+                if (onConfirm) onConfirm();
+            };
 
-                // 点击遮罩层关闭
-                overlay.onclick = (e) => {
-                    if (e.target === overlay) overlay.remove();
-                };
+            // 点击遮罩层关闭
+            overlay.onclick = (e) => {
+                if (e.target === overlay) overlay.remove();
+            };
+        }
+
+        // === Manual Add Feature ===
+        let allThirdPartyApps = [];
+
+        async function openManualAdd() {
+            const modal = document.getElementById('manual-add-modal');
+            const listContainer = document.getElementById('manual-app-list');
+            modal.style.display = 'flex';
+            listContainer.innerHTML = '<div style="text-align:center; padding:20px;">正在加载应用列表...</div>';
+
+            try {
+                // Fetch Apps
+                // 1. Get List via Shell (Using echo $() to flatten output and avoid truncation)
+                const res = await exec('echo $(pm list packages -3)');
+                if (res.errno !== 0) throw new Error("无法获取应用列表");
+
+                const raw = res.stdout || "";
+                // Flattened output -> split by whitespace
+                allThirdPartyApps = raw.split(/\s+/)
+                    .filter(token => token.startsWith('package:'))
+                    .map(token => token.replace('package:', '').trim())
+                    .sort();
+
+                renderManualList();
+
+                // Async fetch labels
+                updateManualLabels();
+
+            } catch (e) {
+                listContainer.innerHTML = `<div style="color:red; text-align:center;">加载失败: ${e.message}</div>`;
             }
+        }
 
-            // === Manual Add Feature ===
-            let allThirdPartyApps = [];
+        function closeManualModal() {
+            document.getElementById('manual-add-modal').style.display = 'none';
+            // Hide FAB
+            document.getElementById('fab-manual-save').style.display = 'none';
+        }
 
-            async function openManualAdd() {
-                const modal = document.getElementById('manual-add-modal');
-                const listContainer = document.getElementById('manual-app-list');
-                modal.style.display = 'flex';
-                listContainer.innerHTML = '<div style="text-align:center; padding:20px;">正在加载应用列表...</div>';
+        function filterManualList(query) {
+            renderManualList(query);
+        }
 
-                try {
-                    // Fetch Apps
-                    // 1. Get List via Shell (Using echo $() to flatten output and avoid truncation)
-                    const res = await exec('echo $(pm list packages -3)');
-                    if (res.errno !== 0) throw new Error("无法获取应用列表");
+        function renderManualList(filter = "") {
+            const listContainer = document.getElementById('manual-app-list');
+            listContainer.innerHTML = '';
 
-                    const raw = res.stdout || "";
-                    // Flattened output -> split by whitespace
-                    allThirdPartyApps = raw.split(/\s+/)
-                        .filter(token => token.startsWith('package:'))
-                        .map(token => token.replace('package:', '').trim())
-                        .sort();
+            const lowerFilter = filter.toLowerCase().trim();
 
-                    renderManualList();
-
-                    // Async fetch labels
-                    updateManualLabels();
-
-                } catch (e) {
-                    listContainer.innerHTML = `<div style="color:red; text-align:center;">加载失败: ${e.message}</div>`;
+            const filteredApps = allThirdPartyApps.filter(pkg => {
+                if (!lowerFilter) return true;
+                if (pkg.toLowerCase().includes(lowerFilter)) return true;
+                if (window.manualAppLabels && window.manualAppLabels[pkg]) {
+                    const label = window.manualAppLabels[pkg].toLowerCase();
+                    if (label.includes(lowerFilter)) return true;
                 }
+                return false;
+            });
+
+            if (filteredApps.length === 0) {
+                listContainer.innerHTML = '<div style="text-align:center; padding:20px;">未找到匹配应用</div>';
+                return;
             }
 
-            function closeManualModal() {
-                document.getElementById('manual-add-modal').style.display = 'none';
-                // Hide FAB
-                document.getElementById('fab-manual-save').style.display = 'none';
-            }
+            filteredApps.forEach(pkg => {
+                const isChecked = loadedPkgList.has(pkg);
+                const safeId = pkg.replace(/\./g, '_');
+                const domId = `manual-name-${safeId}`;
+                const label = (window.manualAppLabels && window.manualAppLabels[pkg]) ? window.manualAppLabels[pkg] : pkg;
 
-            function filterManualList(query) {
-                renderManualList(query);
-            }
-
-            function renderManualList(filter = "") {
-                const listContainer = document.getElementById('manual-app-list');
-                listContainer.innerHTML = '';
-
-                const lowerFilter = filter.toLowerCase().trim();
-
-                const filteredApps = allThirdPartyApps.filter(pkg => {
-                    if (!lowerFilter) return true;
-                    if (pkg.toLowerCase().includes(lowerFilter)) return true;
-                    if (window.manualAppLabels && window.manualAppLabels[pkg]) {
-                        const label = window.manualAppLabels[pkg].toLowerCase();
-                        if (label.includes(lowerFilter)) return true;
-                    }
-                    return false;
-                });
-
-                if (filteredApps.length === 0) {
-                    listContainer.innerHTML = '<div style="text-align:center; padding:20px;">未找到匹配应用</div>';
-                    return;
-                }
-
-                filteredApps.forEach(pkg => {
-                    const isChecked = loadedPkgList.has(pkg);
-                    const safeId = pkg.replace(/\./g, '_');
-                    const domId = `manual-name-${safeId}`;
-                    const label = (window.manualAppLabels && window.manualAppLabels[pkg]) ? window.manualAppLabels[pkg] : pkg;
-
-                    const item = document.createElement('div');
-                    item.className = 'app-item';
-                    item.onclick = (e) => {
-                        if (e.target.tagName !== 'INPUT') {
-                            const cb = document.getElementById(`manual-cb-${safeId}`);
-                            if (cb) {
-                                cb.checked = !cb.checked;
-                                toggleManualCheck(pkg, cb.checked);
-                            }
+                const item = document.createElement('div');
+                item.className = 'app-item';
+                item.onclick = (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        const cb = document.getElementById(`manual-cb-${safeId}`);
+                        if (cb) {
+                            cb.checked = !cb.checked;
+                            toggleManualCheck(pkg, cb.checked);
                         }
-                    };
+                    }
+                };
 
-                    item.innerHTML = `
+                item.innerHTML = `
                     <div style="margin-right:16px; display:flex; align-items:center;">
                          <input type="checkbox" id="manual-cb-${safeId}" 
                              style="width:20px; height:20px; accent-color:var(--md-sys-color-primary);"
@@ -1724,83 +1722,83 @@
                         <div class="app-package" style="margin-top:2px;">${pkg}</div>
                     </div>
                 `;
-                    listContainer.appendChild(item);
+                listContainer.appendChild(item);
+            });
+        }
+
+        function toggleManualCheck(pkg, checked) {
+            if (checked) {
+                loadedPkgList.add(pkg);
+            } else {
+                loadedPkgList.delete(pkg);
+            }
+            // Show FAB
+            document.getElementById('fab-manual-save').style.display = 'flex';
+        }
+
+        async function saveManualSelection() {
+            await savePkgList(); // Reuse main save logic
+            // Refresh main list if it's visible? 
+            // Since we updated loadedPkgList directly, if we go back to the main view, we might need to refresh IT.
+            // But main view is hidden if we are in manual mode? 
+            // "Manual Add" is ON TOP of main view.
+
+            // Re-render main list to reflect changes (e.g. checked states might have changed)
+            // But main list only shows SCANNED apps.
+            // If we added an app that was NOT scanned, it won't show in main list anyway.
+            // If we added an app that WAS scanned, we need to update its checkbox in main list.
+            if (monetApps.length > 0) {
+                monetApps.forEach(p => {
+                    const safeId = p.replace(/\./g, '_');
+                    const cb = document.getElementById(`cb-${safeId}`);
+                    if (cb) cb.checked = loadedPkgList.has(p);
                 });
+                // Update Select All state
+                const allSelected = monetApps.every(pkg => loadedPkgList.has(pkg));
+                document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
+                document.getElementById('icon-select-all').innerHTML = allSelected ? `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>` : `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
             }
 
-            function toggleManualCheck(pkg, checked) {
-                if (checked) {
-                    loadedPkgList.add(pkg);
-                } else {
-                    loadedPkgList.delete(pkg);
-                }
-                // Show FAB
-                document.getElementById('fab-manual-save').style.display = 'flex';
-            }
+            closeManualModal();
+        }
 
-            async function saveManualSelection() {
-                await savePkgList(); // Reuse main save logic
-                // Refresh main list if it's visible? 
-                // Since we updated loadedPkgList directly, if we go back to the main view, we might need to refresh IT.
-                // But main view is hidden if we are in manual mode? 
-                // "Manual Add" is ON TOP of main view.
+        async function updateManualLabels() {
+            if (!window.manualAppLabels) window.manualAppLabels = {};
 
-                // Re-render main list to reflect changes (e.g. checked states might have changed)
-                // But main list only shows SCANNED apps.
-                // If we added an app that was NOT scanned, it won't show in main list anyway.
-                // If we added an app that WAS scanned, we need to update its checkbox in main list.
-                if (monetApps.length > 0) {
-                    monetApps.forEach(p => {
-                        const safeId = p.replace(/\./g, '_');
-                        const cb = document.getElementById(`cb-${safeId}`);
-                        if (cb) cb.checked = loadedPkgList.has(p);
-                    });
-                    // Update Select All state
-                    const allSelected = monetApps.every(pkg => loadedPkgList.has(pkg));
-                    document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
-                    document.getElementById('icon-select-all').innerHTML = allSelected ? `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>` : `<svg t="1769164724419" class="icon" viewBox="0 0 1098 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
-                }
+            const batchSize = 20;
+            for (let i = 0; i < allThirdPartyApps.length; i += batchSize) {
+                // Stop if modal closed? Optional optimization.
+                if (document.getElementById('manual-add-modal').style.display === 'none') break;
 
-                closeManualModal();
-            }
+                const batch = allThirdPartyApps.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (pkg) => {
+                    if (window.manualAppLabels[pkg]) return; // Already loaded
 
-            async function updateManualLabels() {
-                if (!window.manualAppLabels) window.manualAppLabels = {};
-
-                const batchSize = 20;
-                for (let i = 0; i < allThirdPartyApps.length; i += batchSize) {
-                    // Stop if modal closed? Optional optimization.
-                    if (document.getElementById('manual-add-modal').style.display === 'none') break;
-
-                    const batch = allThirdPartyApps.slice(i, i + batchSize);
-                    await Promise.all(batch.map(async (pkg) => {
-                        if (window.manualAppLabels[pkg]) return; // Already loaded
-
-                        let appName = null;
-                        try {
-                            if (typeof $packageManager !== 'undefined') {
-                                const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
-                                if (appInfo) appName = appInfo.getLabel().toString();
-                            } else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
-                                const info = await ksu.getPackagesInfo(pkg);
-                                if (info && info.appLabel) appName = info.appLabel;
-                            }
-                        } catch (e) { }
-
-                        if (appName) {
-                            window.manualAppLabels[pkg] = appName;
-                            // Directly update DOM if exists (for performance, avoid full render)
-                            const safeId = pkg.replace(/\./g, '_');
-                            const el = document.getElementById(`manual-name-${safeId}`);
-                            if (el) el.innerText = appName;
+                    let appName = null;
+                    try {
+                        if (typeof $packageManager !== 'undefined') {
+                            const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
+                            if (appInfo) appName = appInfo.getLabel().toString();
+                        } else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
+                            const info = await ksu.getPackagesInfo(pkg);
+                            if (info && info.appLabel) appName = info.appLabel;
                         }
-                    }));
-                    // Yield
-                    await new Promise(r => setTimeout(r, 10));
-                }
-            }
+                    } catch (e) { }
 
-            window.onload = initData;
+                    if (appName) {
+                        window.manualAppLabels[pkg] = appName;
+                        // Directly update DOM if exists (for performance, avoid full render)
+                        const safeId = pkg.replace(/\./g, '_');
+                        const el = document.getElementById(`manual-name-${safeId}`);
+                        if (el) el.innerText = appName;
+                    }
+                }));
+                // Yield
+                await new Promise(r => setTimeout(r, 10));
+            }
+        }
+
+        window.onload = initData;
     </script>
 </body>
 
