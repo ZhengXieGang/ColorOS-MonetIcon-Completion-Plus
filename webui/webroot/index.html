@@ -43,7 +43,7 @@
 
         .header {
             margin-bottom: 24px;
-            padding-left: 12px;
+            /* padding-left: 12px; REMOVED for alignment with card */
         }
 
         .header h1 {
@@ -300,7 +300,94 @@
             height: 100%;
             background: var(--md-sys-color-primary);
             width: 0%;
-            transition: width 0.2s;
+            transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom Dialog Style */
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .dialog-box {
+            background-color: var(--md-sys-color-surface);
+            border-radius: 28px;
+            padding: 24px;
+            width: 80%;
+            max-width: 320px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            animation: slideUp 0.2s ease;
+        }
+
+        .dialog-title {
+            margin: 0 0 16px 0;
+            font-size: 24px;
+            font-weight: 400;
+        }
+
+        .dialog-content {
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .dialog-btn {
+            background: none;
+            border: none;
+            color: var(--md-sys-color-primary);
+            font-weight: 500;
+            font-size: 14px;
+            padding: 10px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+        .dialog-btn:active {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .dialog-btn.danger {
+            color: var(--md-sys-color-error);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* Improved Version Display */
@@ -603,13 +690,62 @@
         }
 
         #manual-app-list {
-            max-height: 60vh;
+            height: 50vh;
+            /* Fixed height */
             overflow-y: auto;
             margin: -24px;
-            /* Compensate for padding */
             padding: 24px;
             margin-top: 0;
             padding-top: 0;
+        }
+
+        /* MD3 Checkbox */
+        .md3-checkbox-wrapper {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .md3-checkbox-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .md3-checkbox-visual {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--md-sys-color-on-surface-variant);
+            border-radius: 2px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: transparent;
+            box-sizing: border-box;
+        }
+
+        .md3-checkbox-input:checked+.md3-checkbox-visual {
+            background-color: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+        }
+
+        .md3-checkbox-vm {
+            color: var(--md-sys-color-on-primary);
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .md3-checkbox-input:checked+.md3-checkbox-visual .md3-checkbox-vm {
+            opacity: 1;
+            transform: scale(1);
         }
 
         /* Float FAB in Modal */
@@ -737,8 +873,7 @@
                     刷新列表
                 </button>
             </div>
-            <h1>莫奈图标管理</h1>
-            <p>Monet Icon Manager</p>
+            <!-- Title removed as requested -->
         </div>
 
         <div class="card">
@@ -769,6 +904,15 @@
                         个支持应用
                     </div>
 
+                    <!-- Search Box -->
+                    <div style="margin-bottom:12px; padding:0 4px;">
+                        <input type="text" id="app-search-input" placeholder="搜索应用名称或包名..."
+                            style="width:100%; padding:12px 16px; border-radius:30px; border:1px solid var(--md-sys-color-outline); background:rgba(255,255,255,0.05); color:var(--md-sys-color-on-surface); box-sizing:border-box; font-size:14px; outline:none; transition: all 0.2s;"
+                            onfocus="this.style.borderColor='var(--md-sys-color-primary)'; this.style.backgroundColor='rgba(255,255,255,0.08)'"
+                            onblur="this.style.borderColor='var(--md-sys-color-outline)'; this.style.backgroundColor='rgba(255,255,255,0.05)'"
+                            oninput="filterAppList(this.value)">
+                    </div>
+
                     <div style="display:flex; width:100%;">
                         <button id="btn-select-all" class="btn btn-tonal btn-fixed-width" onclick="toggleSelectAll()"
                             style="padding:12px; justify-content:flex-start; margin-bottom:0; color:var(--md-sys-color-primary);">
@@ -790,8 +934,8 @@
                         <button id="btn-manual-add" class="btn btn-tonal btn-fixed-width" onclick="openManualAdd()"
                             style="padding:12px; justify-content:flex-start; margin-bottom:0; color:var(--md-sys-color-primary);">
                             <span style="display:flex; align-items:center; margin-right:6px;">
-                                <!-- Plus Icon -->
-                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                                <!-- Plus Icon (Size 18 to match Select All) -->
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                                 </svg>
                             </span>
@@ -1508,10 +1652,17 @@
 
                 appItem.innerHTML = `
                     <div style="margin-right:16px; display:flex; align-items:center;">
-                         <input type="checkbox" id="cb-${safeId}" 
-                             style="width:20px; height:20px; accent-color:var(--md-sys-color-primary);"
-                             ${isChecked ? 'checked' : ''}
-                             onchange="onAppCheck('${pkg}', this.checked)">
+                         <!-- Custom MD3 Checkbox -->
+                         <div class="md3-checkbox-wrapper">
+                             <input type="checkbox" id="cb-${safeId}" class="md3-checkbox-input"
+                                 ${isChecked ? 'checked' : ''}
+                                 onchange="onAppCheck('${pkg}', this.checked)">
+                             <div class="md3-checkbox-visual">
+                                 <svg class="md3-checkbox-vm" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                 </svg>
+                             </div>
+                         </div>
                     </div>
                     <div class="app-info">
                         <div class="app-name" id="name-${safeId}" style="font-size:16px;">加载中...</div>
@@ -1577,19 +1728,79 @@
 
         async function refreshScan() {
             if (isScanning) return;
-            if (!confirm("确定要重新扫描吗？这将清除现有缓存。")) return;
 
-            document.getElementById('app-list').innerHTML = '';
-            document.getElementById('scan-status').innerHTML = `
-                <div class="spinner"></div>
-                <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
+            showDialog(
+                "重新扫描",
+                "确定要重新扫描吗？这将清除现有缓存并完整重新扫描所有应用。",
+                true, // show cancel
+                async () => {
+                    // On Confirm
+                    document.getElementById('app-list').innerHTML = '';
+                    document.getElementById('scan-status').innerHTML = `
+                        <div class="spinner"></div>
+                        <p style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
+                    `;
+
+                    // Delete result file to force full scan
+                    await exec(`rm -f "${MONET_APPS_FILE}"`);
+
+                    // Start Scan
+                    openIconManager();
+                }
+            );
+        }
+
+        function showDialog(title, content, showCancel, onConfirm) {
+            const overlay = document.createElement('div');
+            overlay.className = 'dialog-overlay';
+
+            const cancelBtn = showCancel ? `
+                <button class="dialog-btn" onclick="this.closest('.dialog-overlay').remove()">
+                    取消
+                </button>
+            ` : '';
+
+            overlay.innerHTML = `
+                <div class="dialog-box">
+                    <h3 class="dialog-title">${title}</h3>
+                    <div class="dialog-content">${content}</div>
+                    <div class="dialog-actions">
+                        ${cancelBtn}
+                        <button class="dialog-btn" id="dialog-confirm-btn">
+                            确定
+                        </button>
+                    </div>
+                </div>
             `;
 
-            // Delete result file to force full scan
-            await exec(`rm -f "${MONET_APPS_FILE}"`);
+            document.body.appendChild(overlay);
 
-            // Start Scan
-            openIconManager();
+            // Bind confirm
+            document.getElementById('dialog-confirm-btn').onclick = () => {
+                overlay.remove();
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function filterAppList(query) {
+            const list = document.getElementById('app-list');
+            const items = list.getElementsByClassName('app-item');
+            const q = query.toLowerCase();
+
+            for (let item of items) {
+                // Get name and package text
+                // Structure: .app-info -> .app-name, .app-package
+                const nameEl = item.querySelector('.app-name');
+                const pkgEl = item.querySelector('.app-package');
+                const nameText = nameEl ? nameEl.innerText.toLowerCase() : '';
+                const pkgText = pkgEl ? pkgEl.innerText.toLowerCase() : '';
+
+                if (nameText.includes(q) || pkgText.includes(q)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            }
         }
 
         // Remove restored functions as they are replaced by selection logic
