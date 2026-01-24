@@ -53,15 +53,27 @@ fi
 # Ensure unique entries for fast grep
 sort -u "$SKIP_FILE" -o "$SKIP_FILE"
 
+# DEBUG: Log paths and counts
+echo "=== DEBUG INFO ===" > "$LOG_FILE"
+echo "MODDIR: $MODDIR" >> "$LOG_FILE"
+echo "BLACKLIST_FILE: $BLACKLIST_FILE" >> "$LOG_FILE"
+echo "BLACKLIST EXISTS: $([ -f "$BLACKLIST_FILE" ] && echo YES || echo NO)" >> "$LOG_FILE"
+echo "RESULT_FILE: $RESULT_FILE" >> "$LOG_FILE"
+echo "RESULT EXISTS: $([ -f "$RESULT_FILE" ] && echo YES || echo NO)" >> "$LOG_FILE"
+echo "SKIP_FILE count: $(wc -l < "$SKIP_FILE")" >> "$LOG_FILE"
+echo "SKIP_FILE content (first 5):" >> "$LOG_FILE"
+head -5 "$SKIP_FILE" >> "$LOG_FILE"
+echo "==================" >> "$LOG_FILE"
+
 # Initialize Counters
 TOTAL=0
 CURRENT=0
 FOUND=0
 if [ -f "$RESULT_FILE" ]; then
-    FOUND=$(grep -c . "$RESULT_FILE")
+    FOUND=$(grep -c . "$RESULT_FILE" 2>/dev/null || echo 0)
 fi
 
-echo "正在获取应用列表..." > "$LOG_FILE"
+echo "正在获取应用列表..." >> "$LOG_FILE"
 RAW_LIST=$(pm list packages -f -3)
 TOTAL=$(echo "$RAW_LIST" | grep -c "package:")
 
