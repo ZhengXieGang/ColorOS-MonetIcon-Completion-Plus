@@ -1,29 +1,25 @@
 #!/system/bin/sh
-# scan_monet.sh - Sequential Incremental Scanner (Legacy Protocol)
+# scan_monet.sh - Real Total Calculator & Scanner
 
-# === 1. Environment Setup ===
+# === 1. Environment ===
 TMP_DIR="/data/adb/moneticon_tmp"
 RESULT_FILE="$TMP_DIR/moneticon_apps"
 SKIP_FILE="$TMP_DIR/skip_list.txt"
+RAW_MAP="$TMP_DIR/raw_map.txt"
+TARGET_LIST="$TMP_DIR/target_list.txt"
 LOG_FILE="$TMP_DIR/scan.log"
 
-# Clean & Init
 mkdir -p "$TMP_DIR"
-rm -f "$SKIP_FILE"
+rm -f "$SKIP_FILE" "$RAW_MAP" "$TARGET_LIST"
 
-# Trap signals
-cleanup() {
-    rm -f "$SKIP_FILE"
-    exit 0
-}
-trap cleanup EXIT INT TERM
+trap "rm -f $SKIP_FILE $RAW_MAP $TARGET_LIST; exit 0" EXIT INT TERM
 
-# === 2. Configuration ===
+# === 2. Config ===
 MODDIR=${0%/*}
 AAPT_DIR="$MODDIR/webroot/aapt2"
 BLACKLIST_FILE="$MODDIR/webroot/blacklist"
 
-# Architecture Check
+# Architecture
 ABI=$(getprop ro.product.cpu.abi)
 if echo "$ABI" | grep -q "arm64"; then
     AAPT_BIN="aapt2-arm64-v8a"
@@ -31,76 +27,61 @@ else
     AAPT_BIN="aapt2-armeabi-v7a"
 fi
 AAPT="$AAPT_DIR/$AAPT_BIN"
-if [ -f "$AAPT" ]; then
-    chmod +x "$AAPT"
-fi
+[ -f "$AAPT" ] && chmod +x "$AAPT"
 
-# === 3. Incremental Logic Setup ===
+# === 3. Prepare Lists ===
+echo "准备扫描列表..." > "$LOG_FILE"
+
+# 3.1 Build Skip List
 echo -n "" > "$SKIP_FILE"
-
-# Load existing results (if file exists)
-if [ -f "$RESULT_FILE" ]; then
-    cat "$RESULT_FILE" >> "$SKIP_FILE"
-fi
-# Load blacklist (if exists)
-if [ -f "$BLACKLIST_FILE" ]; then
-    cat "$BLACKLIST_FILE" >> "$SKIP_FILE"
-fi
+[ -f "$RESULT_FILE" ] && cat "$RESULT_FILE" >> "$SKIP_FILE"
+[ -f "$BLACKLIST_FILE" ] && cat "$BLACKLIST_FILE" >> "$SKIP_FILE"
+# Ensure clean unique list of packages
 sort -u "$SKIP_FILE" -o "$SKIP_FILE"
 
-echo "正在获取应用列表..." > "$LOG_FILE"
-RAW_LIST=$(pm list packages -f -3)
-TOTAL=$(echo "$RAW_LIST" | grep -c "package:")
+# 3.2 Build Raw Map (pkg path)
+# pm list output: package:/path/to/apk=com.pkg
+# We sed to: com.pkg /path/to/apk
+pm list packages -f -3 | sed 's/^package://' | sed 's/=/\t/' | awk '{print $2, $1}' > "$RAW_MAP"
+
+# 3.3 Filter Targets
+# We want lines from RAW_MAP where $1 (pkg) is NOT in SKIP_FILE
+awk 'NR==FNR {skip[$1]=1; next} !($1 in skip) {print $0}' "$SKIP_FILE" "$RAW_MAP" > "$TARGET_LIST"
+
+# === 4. Scanning Loop ===
+TOTAL=$(wc -l < "$TARGET_LIST")
 CURRENT=0
+FOUND=0
+[ -f "$RESULT_FILE" ] && FOUND=$(grep -c . "$RESULT_FILE")
 
-echo "开始扫描... (共 $TOTAL 个应用)" >> "$LOG_FILE"
+echo "Start Scanning ($TOTAL new apps)..." > "$LOG_FILE"
 
-# === 4. Sequential Scan Loop ===
-IFS=$'\n'
-for line in $RAW_LIST; do
-    unset IFS
-    [ -z "$line" ] && continue
+# Format of TARGET_LIST: com.pkg /path/to/apk
+while read -r pkg_name apk_path; do
+    [ -z "$pkg_name" ] && continue
     
-    # Parse line: package:PATH=PKG
-    temp=${line#package:}
-    apk_path=${temp%=*}
-    pkg_name=${temp##*=}
-    
-    if [ -z "$apk_path" ] || [ -z "$pkg_name" ]; then continue; fi
-
     CURRENT=$((CURRENT + 1))
     
-    # --- Check Logic ---
-    # 0. Incremental Skip
-    if grep -F -x -q "$pkg_name" "$SKIP_FILE"; then
-        # Update Log Periodically even when skipping, to keep UI alive
-        if [ $((CURRENT % 5)) -eq 0 ]; then
-             echo "PROGRESS:$CURRENT/$TOTAL:$pkg_name" >> "$LOG_FILE"
-        fi
-        continue
-    fi
-
-    # 1. Direct AAPT Check (Trust Chain)
-    # Output line example: application: label='App Name' icon='res/mipmap-anydpi-v26/ic_launcher.xml'
-    # We grab the icon path.
+    # Check
     output=$("$AAPT" dump badging "$apk_path" 2>/dev/null)
     icon_path=$(echo "$output" | grep "application:" | sed -n "s/.*icon='\([^']*\)'.*/\1/p" | head -n 1)
     
     if [[ "$icon_path" == *.xml ]]; then
-        # 2. XML Tree Deep Check
-        # Check for 'monochrome' OR 'themed_icon'
         if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i -E "monochrome|themed_icon"; then
             echo "$pkg_name" >> "$RESULT_FILE"
+            FOUND=$((FOUND + 1))
         fi
     fi
     
-    # Update Progress (Every 5 processed items)
-    if [ $((CURRENT % 5)) -eq 0 ]; then
-        echo "PROGRESS:$CURRENT/$TOTAL:$pkg_name" >> "$LOG_FILE"
-    fi
-done
+    # Real-time Update
+    # PROGRESS:Index/Total:FoundCount
+    echo "PROGRESS:$CURRENT/$TOTAL:$FOUND" >> "$LOG_FILE"
 
-# Final flush
-echo "PROGRESS:$TOTAL/$TOTAL:完成" >> "$LOG_FILE"
+done < "$TARGET_LIST"
+
+# Final
+echo "PROGRESS:$TOTAL/$TOTAL:$FOUND" >> "$LOG_FILE"
 echo "扫描完成。" >> "$LOG_FILE"
 echo "DONE" >> "$LOG_FILE"
+
+rm -f "$SKIP_FILE" "$RAW_MAP" "$TARGET_LIST"

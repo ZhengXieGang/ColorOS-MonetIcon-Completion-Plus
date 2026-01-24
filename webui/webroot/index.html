@@ -1375,30 +1375,31 @@ function pollScanProgress() {
                     return;
                 }
 
-                // Parse PROGRESS:CURRENT/TOTAL:PKG
-                if (line.startsWith("PROGRESS:")) {
-                    const parts = line.split(':');
-                    if (parts.length >= 3) {
-                        const ratio = parts[1]; // 12/100
-                        const pkg = parts[2];
-                        const [curr, total] = ratio.split('/').map(Number);
 
-                        // Update Bar
-                        if (total > 0) {
-                            const percent = (curr / total) * 100;
-                            document.getElementById('scan-progress-bar').style.width = percent + '%';
-                            document.getElementById('scan-progress-wrap').style.display = 'block';
-                        }
+// Parse PROGRESS:CURRENT/TOTAL:FOUND
+if (line.startsWith("PROGRESS:")) {
+    const parts = line.split(':');
+    if (parts.length >= 3) {
+        const ratio = parts[1]; // 12/50
+        const foundCount = parts[2]; // 5
+        const [curr, total] = ratio.split('/').map(Number);
 
-                        // Update Text
-                        const fileEl = document.getElementById('scan-file');
-                        if (fileEl) fileEl.innerText = `${pkg} (${curr}/${total})`;
-                    }
-                } else if (line) {
-                    // Fallback logging
-                    const fileEl = document.getElementById('scan-file');
-                    if (fileEl) fileEl.innerText = line; // Show raw line if not progress format
-                }
+        // Update Bar
+        if (total > 0) {
+            const percent = (curr / total) * 100;
+            document.getElementById('scan-progress-bar').style.width = percent + '%';
+            document.getElementById('scan-progress-wrap').style.display = 'block';
+        }
+
+        // Update Text (No Package Name)
+        const fileEl = document.getElementById('scan-file');
+        if (fileEl) fileEl.innerText = `正在扫描: ${curr}/${total} | 已发现: ${foundCount}`;
+    }
+} else if (line) {
+    // Fallback logging
+    const fileEl = document.getElementById('scan-file');
+    if (fileEl) fileEl.innerText = line;
+}
             }
         } catch (e) {
             console.log("轮询出错:", e);
