@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=4-->
+    <!-- ReleaseCode=5-->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -1336,8 +1336,6 @@
 
         async function clearTmpCache() {
             await exec(`rm -rf "${CACHE_ROOT}"`);
-            // Also delete the persistent scan results as requested
-            await exec(`rm -f "${MONET_APPS_FILE}"`);
             await refreshTmpCacheSize();
             log("缓存已清理。", 'success');
             if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("缓存清理完成");
