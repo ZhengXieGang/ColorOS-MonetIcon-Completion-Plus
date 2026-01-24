@@ -7,8 +7,7 @@ def create_folders_and_list():
     
     source_dir = os.path.join(current_dir, 'icon')
     target_dir = os.path.join(current_dir, 'uxicons')
-    # 清单文件路径
-    list_file_path = os.path.join(current_dir, 'packages.txt')
+
 
     # 1. 检查 icon 文件夹是否存在
     if not os.path.exists(source_dir):
@@ -21,7 +20,7 @@ def create_folders_and_list():
 
     print(f"🚀 开始处理...")
     
-    package_list = []
+
     folder_count = 0
 
     # 3. 遍历并处理
@@ -42,17 +41,9 @@ def create_folders_and_list():
                 os.makedirs(package_folder_path)
                 folder_count += 1
             
-            # 添加到清单列表
-            package_list.append(package_name)
 
-    # 4. 写入 packages.txt
-    try:
-        with open(list_file_path, 'w', encoding='utf-8') as f:
-            for item in package_list:
-                f.write(item + '\n')
-        print(f"📝 已生成清单: packages.txt (共 {len(package_list)} 行)")
-    except Exception as e:
-        print(f"❌ 写入 txt 时出错: {e}")
+
+
 
     print("-" * 30)
     print(f"🎉 处理完成！新创建文件夹: {folder_count} 个。")
