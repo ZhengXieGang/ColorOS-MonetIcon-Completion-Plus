@@ -70,6 +70,9 @@ echo "" > "$RESULT_FILE" # Clear result file
 
     while read -r status < "$STATUS_PIPE"; do
         if [ "$status" = "DONE" ]; then
+             # Final flush
+            echo "{\"total\": $total, \"current\": $current, \"found\": $found}" > "$PROGRESS_FILE.tmp"
+            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
             break
         elif [ "$status" = "CHECKED" ]; then
             current=$((current + 1))
@@ -78,10 +81,11 @@ echo "" > "$RESULT_FILE" # Clear result file
             found=$((found + 1))
         fi
         
-        # throttle updates? For local file write, 1ms is fine.
-        # Write atomic JSON
-        echo "{\"total\": $total, \"current\": $current, \"found\": $found}" > "$PROGRESS_FILE.tmp"
-        mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+        # Throttling: Write only every 5 updates to reduce I/O pressure and avoid pipe deadlock
+        if [ $((current % 5)) -eq 0 ]; then
+            echo "{\"total\": $total, \"current\": $current, \"found\": $found}" > "$PROGRESS_FILE.tmp"
+            mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+        fi
     done
 ) &
 STATUS_PID=$!
@@ -122,14 +126,17 @@ check_app() {
 
 # === 6. Main Dispatcher ===
 echo "Gathering package list..."
+# Load list into memory variable. Warning: Large lists might consume memory, but usually safe for package list.
 RAW_LIST=$(pm list packages -f -3)
 TOTAL_COUNT=$(echo "$RAW_LIST" | grep -c "package:")
 
 # Send total to progress monitor
 echo "$TOTAL_COUNT" >&4
 
-# Loop through apps
-echo "$RAW_LIST" | while read -r line; do
+# Use for-loop with IFS='newline' to avoid subshell issues with 'wait'
+IFS=$'\n'
+for line in $RAW_LIST; do
+    unset IFS
     [ -z "$line" ] && continue
     
     temp=${line#package:}
