@@ -2,6 +2,10 @@
 # scan_monet.sh - Pre-filtered Sequential Scanner
 
 # === 1. Environment ===
+# Hardcode specific path to avoid ambiguity in different execution contexts
+MODDIR="/data/adb/modules/ThemedIconCompletion"
+# Ensure the directory exists
+mkdir -p "$MODDIR/webroot"
 TMP_DIR="/data/adb/moneticon_tmp"
 PROGRESS_FILE="$TMP_DIR/progress.json"
 RESULT_FILE="$MODDIR/webroot/moneticon_apps"
@@ -24,10 +28,6 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # === 2. Configuration ===
-# Hardcode specific path to avoid ambiguity in different execution contexts
-MODDIR="/data/adb/modules/ThemedIconCompletion"
-# Ensure the directory exists
-mkdir -p "$MODDIR/webroot"
 AAPT_DIR="$MODDIR/webroot/aapt2"
 BLACKLIST_FILE="$MODDIR/webroot/blacklist"
 
@@ -49,7 +49,7 @@ echo "准备扫描列表..." > "$LOG_FILE"
 # Filter empty lines & strip CR
 echo -n "" > "$SKIP_FILE"
 if [ -f "$RESULT_FILE" ]; then
-    grep -v '^$' "$RESULT_FILE" | tr -d '\r' >> "$SKIP_FILE" 2>/dev/null
+    cat "$RESULT_FILE" | tr -d '\r' | grep -v '^$' >> "$SKIP_FILE" 2>/dev/null
 fi
 if [ -f "$BLACKLIST_FILE" ]; then
     grep -v '^$' "$BLACKLIST_FILE" | tr -d '\r' >> "$SKIP_FILE" 2>/dev/null
