@@ -1350,54 +1350,61 @@
 
         const PROGRESS_JSON = "/data/adb/moneticon_tmp/progress.json";
 
-        function pollScanProgress() {
-            if (scanTimer) clearInterval(scanTimer);
+function pollScanProgress() {
+    if (scanTimer) clearInterval(scanTimer);
 
-            scanTimer = setInterval(async () => {
-                if (!isScanning) {
+    // Poll every 500ms
+    scanTimer = setInterval(async () => {
+        if (!isScanning) {
+            clearInterval(scanTimer);
+            return;
+        }
+
+        try {
+            // Read last line of scan log
+            const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
+            if (logRes.errno === 0) {
+                const line = logRes.stdout.trim();
+
+                // Check Done
+                if (line === "DONE" || line.includes("扫描完成")) {
                     clearInterval(scanTimer);
+                    isScanning = false;
+                    document.getElementById('scan-progress-wrap').style.display = 'none';
+                    await loadScanResults();
                     return;
                 }
 
-                try {
-                    // 1. Check for completion signal in log (Definitive)
-                    const logRes = await exec(`tail -n 1 "${SCAN_LOG}"`);
-                    if (logRes.errno === 0) {
-                        const line = logRes.stdout.trim();
-                        if (line === "DONE" || line.includes("扫描完成")) {
-                            clearInterval(scanTimer);
-                            isScanning = false;
-                            document.getElementById('scan-progress-wrap').style.display = 'none';
-                            await loadScanResults();
-                            return;
+                // Parse PROGRESS:CURRENT/TOTAL:PKG
+                if (line.startsWith("PROGRESS:")) {
+                    const parts = line.split(':');
+                    if (parts.length >= 3) {
+                        const ratio = parts[1]; // 12/100
+                        const pkg = parts[2];
+                        const [curr, total] = ratio.split('/').map(Number);
+
+                        // Update Bar
+                        if (total > 0) {
+                            const percent = (curr / total) * 100;
+                            document.getElementById('scan-progress-bar').style.width = percent + '%';
+                            document.getElementById('scan-progress-wrap').style.display = 'block';
                         }
+
+                        // Update Text
+                        const fileEl = document.getElementById('scan-file');
+                        if (fileEl) fileEl.innerText = `${pkg} (${curr}/${total})`;
                     }
-
-                    // 2. Read Progress JSON for UI
-                    const res = await exec(`cat "${PROGRESS_JSON}"`);
-                    if (res.errno === 0 && res.stdout.trim()) {
-                        try {
-                            const data = JSON.parse(res.stdout); // {total, current, found, pkg}
-                            const { total, current, found, pkg } = data;
-
-                            if (total > 0) {
-                                const percent = (current / total) * 100;
-                                document.getElementById('scan-progress-bar').style.width = percent + '%';
-                                document.getElementById('scan-progress-wrap').style.display = 'block';
-
-                                const fileEl = document.getElementById('scan-file');
-                                if (fileEl) {
-                                    const displayPkg = pkg ? `| ${pkg}` : "";
-                                    fileEl.innerText = `已扫描: ${current}/${total} | 发现: ${found} ${displayPkg}`;
-                                }
-                            }
-                        } catch (e) { }
-                    }
-                } catch (e) {
-                    console.log("轮询出错:", e);
+                } else if (line) {
+                    // Fallback logging
+                    const fileEl = document.getElementById('scan-file');
+                    if (fileEl) fileEl.innerText = line; // Show raw line if not progress format
                 }
-            }, 300);
+            }
+        } catch (e) {
+            console.log("轮询出错:", e);
         }
+    }, 500);
+}
 
         async function stopScan() {
             isScanning = false;
