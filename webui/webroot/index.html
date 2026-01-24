@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=5-->
+    <!-- ReleaseCode=2-->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -849,11 +849,6 @@
             <button class="btn btn-tonal" onclick="openIconManager()">
                 管理图标
             </button>
-        </div>
-
-        <div id="debug-version"
-            style="text-align:center; font-size:10px; color:var(--md-sys-color-outline); margin-top:10px; opacity:0.5; padding-bottom: 10px;">
-            VersionCode:01231905
         </div>
     </div>
 
@@ -1964,10 +1959,17 @@
 
                 item.innerHTML = `
                     <div style="margin-right:16px; display:flex; align-items:center;">
-                         <input type="checkbox" id="manual-cb-${safeId}" 
-                             style="width:20px; height:20px; accent-color:var(--md-sys-color-primary);"
-                             ${isChecked ? 'checked' : ''}
-                             onchange="toggleManualCheck('${pkg}', this.checked)">
+                         <!-- Custom MD3 Checkbox -->
+                         <div class="md3-checkbox-wrapper">
+                             <input type="checkbox" id="manual-cb-${safeId}" class="md3-checkbox-input"
+                                 ${isChecked ? 'checked' : ''}
+                                 onchange="toggleManualCheck('${pkg}', this.checked)">
+                             <div class="md3-checkbox-visual">
+                                 <svg class="md3-checkbox-vm" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                 </svg>
+                             </div>
+                         </div>
                     </div>
                     <div class="app-info">
                         <div class="app-name" id="${domId}" style="font-size:16px;">${label}</div>
