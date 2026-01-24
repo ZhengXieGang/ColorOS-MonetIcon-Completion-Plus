@@ -86,17 +86,20 @@ for line in $RAW_LIST; do
     
     # --- Check Logic ---
     # 0. Incremental Skip
-    # Debug first few
+    
+    # Debug Logic
     if [ $CURRENT -le 5 ]; then
-        echo "DESC: Check '$pkg_name'" >> "$LOG_FILE"
+        if [ $CURRENT -eq 1 ]; then
+            echo "DEBUG: Skip List Header:" >> "$LOG_FILE"
+            head -n 3 "$SKIP_FILE" | sed 's/^/  /' >> "$LOG_FILE"
+        fi
+        IN_SKIP="NO"
+        if grep -F -x -q "$pkg_name" "$SKIP_FILE"; then IN_SKIP="YES"; fi
+        echo "DEBUG: Check [$pkg_name] -> InSkip? $IN_SKIP" >> "$LOG_FILE"
     fi
 
     if grep -F -x -q "$pkg_name" "$SKIP_FILE"; then
         # Already processed or blacklisted
-        # We don't increment FOUND here because we want to count *new* findings?
-        # Or do we want to show total valid apps?
-        # The UI shows "Found: X". If we skip existing results, FOUND stays at initial value.
-        # This is correct.
         
         # Real-time Progress Update
         echo "{\"total\": $TOTAL, \"current\": $CURRENT, \"found\": $FOUND, \"pkg\": \"$pkg_name\"}" > "$PROGRESS_FILE.tmp"

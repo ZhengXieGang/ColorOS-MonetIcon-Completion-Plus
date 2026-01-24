@@ -1378,7 +1378,7 @@
                     if (jsonRes.errno === 0 && jsonRes.stdout.trim()) {
                         try {
                             const progress = JSON.parse(jsonRes.stdout.trim());
-                            const { total, current, found } = progress;
+                            const { total, current, found, pkg } = progress;
 
                             // Update Bar
                             if (total > 0) {
@@ -1387,9 +1387,9 @@
                                 document.getElementById('scan-progress-wrap').style.display = 'block';
                             }
 
-                            // Update Text (No Package Name as per user request)
+                            // Update Text (Show Package Name)
                             const fileEl = document.getElementById('scan-file');
-                            if (fileEl) fileEl.innerText = `正在扫描: ${current}/${total} | 已发现: ${found}`;
+                            if (fileEl) fileEl.innerText = `正在扫描: ${current}/${total} | 已发现: ${found}\n${pkg || ''}`;
                         } catch (parseErr) {
                             // JSON parse error, ignore
                         }
