@@ -1,5 +1,5 @@
 # ColorOS 莫奈图标模块的非官方图标补全项目
-<img width="100%" alt="未标题-1" src="https://github.com/user-attachments/assets/207b794b-dbd3-4e38-b158-a85739969738" />
+<img width="100%" alt="未标题-1" src="https://github.com/user-attachments/assets/7d7c478f-dfa0-4726-a997-3a3790267179" />
 
 > **说明**：由于模块作者未授权，此项目不提供原模块，欢迎各位 commit 图标。
 
