@@ -1,4 +1,5 @@
 ai.x.grok
+bin.mt.plus
 cash.savo
 cn.ac.lz233.tarnhelm
 cn.emagsoftware.gamehall
@@ -19,6 +20,7 @@ com.dijia1124.plusplusbattery
 com.ejiema.ec
 com.example.piliplus
 com.follow.clash
+com.franco.kernel
 com.github.jing332.alistflutter
 com.google.ai.edge.gallery
 com.google.android.apps.docs
@@ -35,9 +37,11 @@ com.huachenjie.shandong_school
 com.ilanzou.app.disk
 com.js.jshome
 com.junkfood.seal
+com.kowx712.supermanager
 com.linkease.easyexplorer
 com.looptry.guiwu
 com.merxury.blocker
+com.netease.uuremote
 com.openai.sora
 com.parallelc.micts
 com.parallelc.vistrigger
@@ -45,10 +49,14 @@ com.pcr532.leon
 com.peace.IdPhoto
 com.poe.android
 com.reveny.nativecheck
+com.rifsxd.ksunext
 com.shenghuayule.dcbase
+com.studio.duckdetector
 com.sukisu.ultra
 com.syyf.quickpay
+com.twj.wksu
 com.wanfengyyds.jsxposedpro
+com.xiaozhen.beauty.hnd
 de.simon.dankelmann.bluetoothlespam
 eu.darken.sdmse
 icu.freedomIntrovert.biliSendCommAntifraud
@@ -64,4 +72,6 @@ org.flos.phira
 org.intoorbit.spectrum
 org.kde.kdeconnect_tp
 org.localsend.localsend_app
+tafsan.utgyzt.uynwdw
 tornaco.apps.shortx
+vaumet.ndfdvv.ztmdui
