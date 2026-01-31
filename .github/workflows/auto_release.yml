@@ -29,32 +29,19 @@ jobs:
           # 1. 调试信息：打印 uxicons 目录内容到日志，方便排查
           echo "=== Debug: Listing directory content ==="
           ls -R uxicons || echo "Warning: uxicons directory not found"
-          
-          # 2. 计数逻辑修正
-          # 只要是 uxicons 目录下的文件都算进去，排除文件夹本身
-          if [ -d "uxicons" ]; then
-            count=$(find uxicons -type f | wc -l)
-          else
-            count=0
-          fi
-          
-          # 去除空格
-          count=$(echo $count | xargs)
-          
-          # 3. 智能版本号生成 logic
+
           # 格式: v0.{图标数}.{WebUI版本}
           
           # 图标计数 (去除前导零)
           if [ -d "uxicons" ]; then
              COUNT=$(find uxicons -type f | wc -l | xargs)
-             COUNT=$(echo $COUNT | sed 's/^0*//') # 63
+             COUNT=$(find uxicons -mindepth 1 -maxdepth 1 -type d | wc -l | xargs)
              [ -z "$COUNT" ] && COUNT=0
           else
              COUNT=0
           fi
           
           # WebUI 版本: 读取 webui/webroot/index.html 中的 <!-- ReleaseCode=X -->
-          # 允许手动控制 WebUI 版本号
           WEBUI_VER=$(grep -o "ReleaseCode=[0-9]\+" webui/webroot/index.html | cut -d= -f2)
           
           # 缺省值处理
