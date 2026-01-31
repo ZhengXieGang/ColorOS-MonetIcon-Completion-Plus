@@ -10,6 +10,7 @@ com.ai.assistance.operit
 com.alibaba.android.rimet
 com.application.zaona.flowchat
 com.baidu.netdisk
+com.baidu.tieba
 com.baiyang.eet
 com.bandbbs.ebook
 com.bandbbs.mobileapp
@@ -37,10 +38,13 @@ com.google.android.apps.photos.scanner
 com.google.android.apps.subscriptions.red
 com.google.android.apps.wearables.maestro.companion
 com.google.android.calculator
+com.google.android.contacts
 com.google.android.gm
 com.google.android.youtube
+com.graceful.iInhuman-2
 com.huachenjie.shandong_school
 com.ilanzou.app.disk
+com.jingdong.app.mall
 com.jingyao.easybike
 com.js.jshome
 com.junkfood.seal
@@ -59,12 +63,14 @@ com.peace.IdPhoto
 com.poe.android
 com.reveny.nativecheck
 com.rifsxd.ksunext
+com.sankuai.meituan
 com.shenghuayule.dcbase
 com.ss.android.ugc.aweme
 com.studio.duckdetector
 com.suda.yzune.wakeupschedule
 com.sukisu.ultra
 com.syyf.quickpay
+com.taobao.taobao
 com.taptap
 com.twj.wksu
 com.unionpay
@@ -89,5 +95,6 @@ org.intoorbit.spectrum
 org.kde.kdeconnect_tp
 org.localsend.localsend_app
 tafsan.utgyzt.uynwdw
+top.hookvip.pro-2
 tornaco.apps.shortx
 vaumet.ndfdvv.ztmdui
