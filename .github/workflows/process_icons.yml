@@ -1,0 +1,60 @@
+name: Auto Process UX Icons
+
+# 触发条件
+on:
+  # 当推送到 main 分支，且 uxicons 目录下有变化时触发
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'uxicons/**'
+      - 'process_icons.py'
+  # 允许手动在 Actions 页面点击按钮触发
+  workflow_dispatch:
+
+# 权限设置：允许 Workflow 写入代码仓库（提交更改）
+permissions:
+  contents: write
+
+jobs:
+  process-icons:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      # 2. 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+          
+      # 3. 安装依赖 (Pillow)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow
+
+      # 4. 运行你的 Python 脚本
+      - name: Run processing script
+        run: python process_icons.py
+
+      # 5. 提交并推送更改 (如果文件被修改)
+      - name: Commit and Push changes
+        run: |
+          # 配置 Git 用户信息（使用 GitHub Actions 机器人）
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # 添加 uxicons 目录下的所有更改
+          git add uxicons/
+          
+          # 检查是否有文件状态改变
+          if git diff --staged --quiet; then
+            echo "✅ No changes to commit."
+          else
+            echo "📝 Changes detected, committing..."
+            git commit -m "🎨 Auto-process icons: Rename & Fix RGBA [skip ci]"
+            git push
+          fi
