@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=3-->
+    <!-- ReleaseCode=4-->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -1529,10 +1529,7 @@
 
                 if (res.errno === 0) {
                     let content = res.stdout || "";
-                    if (!content.trim()) {
-                        log("配置文件解析为空", 'warn');
-                        return;
-                    }
+
 
                     // Remove BOM if present (though echo might have stripped it, safety first)
                     if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1);
@@ -1567,6 +1564,14 @@
                 // Join with escaped newlines for printf
                 const content = Array.from(loadedPkgList).join('\\n');
                 await exec(`printf "${content}" > "${PKGLIST_FILE}"`);
+
+                // Trigger clean to apply changes immediately
+                if (typeof SCRIPT_FILE !== 'undefined') {
+                    await exec(`sh "${SCRIPT_FILE}" clean_icon`);
+                } else {
+                    // Fallback if SCRIPT_FILE variable scope issue, but it should be global
+                    await exec(`sh "${MOD_ROOT}/moneticons_plus.sh" clean_icon`);
+                }
 
                 if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("保存成功");
 
@@ -1701,7 +1706,25 @@
             }
 
             // 解析逻辑：用逗号分割
-            monetApps = appsRes.stdout.split(',').map(line => line.trim()).filter(line => line.length > 0);
+            // 解析逻辑：用逗号分割 (格式 verify: pkg|label)
+            const items = appsRes.stdout.split(',').map(line => line.trim()).filter(line => line.length > 0);
+            monetApps = [];
+            // If appLabels not defined globally, define it or assume it is. 
+            // Better to attach to window or just rely on this scope if displayAppList uses it.
+            // displayAppList uses monetApps.
+            // Let's create a global map if not exists.
+            if (typeof window.appLabelsMap === 'undefined') window.appLabelsMap = {};
+
+            items.forEach(item => {
+                const parts = item.split('|');
+                const pkg = parts[0];
+                const label = parts[1] || pkg; // Fallback to pkg if no label
+
+                if (pkg) {
+                    monetApps.push(pkg);
+                    window.appLabelsMap[pkg] = label;
+                }
+            });
 
             // Sync loaded selection with scan results (optional: remove stale entries?)
             // We keep stale entries in loadedPkgList in case user wants to persist them even if not found?
@@ -1793,7 +1816,7 @@
                          </div>
                     </div>
                     <div class="app-info">
-                        <div class="app-name" id="name-${safeId}" style="font-size:16px;">加载中...</div>
+                        <div class="app-name" id="name-${safeId}" style="font-size:16px;">${window.appLabelsMap && window.appLabelsMap[pkg] ? window.appLabelsMap[pkg] : "加载中..."}</div>
                         <div class="app-package" style="margin-top:2px;">${pkg}</div>
                     </div>
                 `;
@@ -1811,29 +1834,35 @@
 
         async function updateAppLabels() {
             for (const pkg of monetApps) {
-                let appName = pkg;
+                // Initialize with existing label from file (if available) or default to pkg
+                let appName = (window.appLabelsMap && window.appLabelsMap[pkg]) ? window.appLabelsMap[pkg] : pkg;
+                let foundNew = false;
                 try {
-                    // 1. 尝试 $packageManager
-                    if (typeof $packageManager !== 'undefined') {
-                        const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
-                        if (appInfo) appName = appInfo.getLabel().toString();
+                    // 1. 尝试 KSU API (Prioritized)
+                    if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
+                        try {
+                            const info = await ksu.getPackagesInfo(pkg);
+                            if (info && info.appLabel) {
+                                appName = info.appLabel;
+                                foundNew = true;
+                            }
+                        } catch (err) { }
                     }
-                    // 2. 尝试 KSU API
-                    else if (typeof ksu !== 'undefined' && ksu.getPackagesInfo) {
-                        const info = await ksu.getPackagesInfo(pkg);
-                        if (info && info.appLabel) appName = info.appLabel;
+
+                    // 2. 尝试 $packageManager (Fallback if KSU didn't yield result)
+                    if (!foundNew && typeof $packageManager !== 'undefined') {
+                        const appInfo = $packageManager.getApplicationInfo(pkg, 0, 0);
+                        if (appInfo) {
+                            const label = appInfo.getLabel();
+                            if (label) appName = label.toString();
+                        }
                     }
                 } catch (e) { }
 
                 // Update DOM
                 const safeId = pkg.replace(/\./g, '_');
                 const nameEl = document.getElementById(`name-${safeId}`);
-                // Removed onclick update as item onclick is now handled in displayAppList
                 if (nameEl) nameEl.innerText = appName;
-
-                continue;
-
-                // (Old dumpsys logic skipped for brevity, maintained from original structure if needed but assuming KSU/WebView)
             }
         }
 
@@ -1869,7 +1898,7 @@
             document.getElementById('scan-status').style.display = 'block';
             document.getElementById('scan-status').innerHTML = `
                 <div class="spinner"></div>
-                <p id="scan-msg" style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在初始化扫描...</p>
+                <p id="scan-msg" style="margin-top:16px; color:var(--md-sys-color-on-surface-variant);">正在扫描...</p>
                 <div id="scan-progress-wrap" class="scan-progress-wrap">
                     <div id="scan-progress-bar" class="scan-progress-bar"></div>
                 </div>
