@@ -27,6 +27,7 @@ com.example.piliplus
 com.follow.clash
 com.franco.kernel
 com.github.jing332.alistflutter
+com.github.lingyan000.fluxdo
 com.google.ai.edge.gallery
 com.google.android.apps.authenticator2
 com.google.android.apps.docs
@@ -41,8 +42,9 @@ com.google.android.calculator
 com.google.android.contacts
 com.google.android.gm
 com.google.android.youtube
-com.graceful.iInhuman-2
+com.graceful.iInhuman
 com.huachenjie.shandong_school
+com.hypergryph.endfield
 com.ilanzou.app.disk
 com.jingdong.app.mall
 com.jingyao.easybike
@@ -95,6 +97,6 @@ org.intoorbit.spectrum
 org.kde.kdeconnect_tp
 org.localsend.localsend_app
 tafsan.utgyzt.uynwdw
-top.hookvip.pro-2
+top.hookvip.pro
 tornaco.apps.shortx
 vaumet.ndfdvv.ztmdui
