@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=5-->
+    <!-- ReleaseCode=5 -->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -162,9 +162,8 @@
         /* Version Card V3 - Centered Stack Layout (Android Update Style) */
         .version-card {
             background-color: var(--md-sys-color-surface);
-            /* Clean background */
             text-align: center;
-            padding: 32px 20px;
+            padding: 10px;
             margin-bottom: 1px;
             display: flex;
             flex-direction: column;
@@ -304,21 +303,6 @@
         }
 
         /* Custom Dialog Style */
-        .dialog-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s ease;
-        }
-
         .dialog-box {
             background-color: var(--md-sys-color-surface);
             border-radius: 28px;
@@ -330,39 +314,10 @@
             animation: slideUp 0.2s ease;
         }
 
-        .dialog-title {
-            margin: 0 0 16px 0;
-            font-size: 24px;
-            font-weight: 400;
-        }
-
-        .dialog-content {
-            font-size: 14px;
-            color: var(--md-sys-color-on-surface-variant);
-            margin-bottom: 24px;
-            line-height: 1.5;
-            word-break: break-all;
-        }
-
         .dialog-actions {
             display: flex;
             justify-content: flex-end;
             gap: 8px;
-        }
-
-        .dialog-btn {
-            background: none;
-            border: none;
-            color: var(--md-sys-color-primary);
-            font-weight: 500;
-            font-size: 14px;
-            padding: 10px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-        }
-
-        .dialog-btn:active {
-            background-color: rgba(255, 255, 255, 0.1);
         }
 
         .dialog-btn.danger {
@@ -392,10 +347,6 @@
         }
 
         /* Improved Version Display */
-        .version-card {
-            text-align: center;
-            padding: 10px;
-        }
 
         .v-status {
             font-size: 16px;
@@ -605,6 +556,8 @@
             justify-content: center;
             z-index: 1000;
             padding: 20px;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
         }
 
         .dialog {
@@ -1025,11 +978,7 @@
         </button>
     </div>
 
-    <div id="app-list"></div>
-    </div>
-    </div>
-    </div>
-    </div>
+
 
     <!-- Manual Add Modal -->
     <div id="manual-add-modal" class="dialog-overlay" style="display:none;">
@@ -1162,6 +1111,11 @@
         const SCRIPT_FILE = `${MOD_ROOT}/moneticons_plus.sh`; // Unified Script
         const PKGLIST_FILE = `${WEB_ROOT}/pkglist`;
         const VERSION_FILE = `${WEB_ROOT}/version`;
+        const ICON_PATH_FILE = `${WEB_ROOT}/icon_path`;
+
+        // --- SVG 图标常量 ---
+        const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 960 960" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
+        const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
 
 
 
@@ -1564,13 +1518,8 @@
                 const content = Array.from(loadedPkgList).join('\\n');
                 await exec(`printf "${content}" > "${PKGLIST_FILE}"`);
 
-                // Trigger clean to apply changes immediately
-                if (typeof SCRIPT_FILE !== 'undefined') {
-                    await exec(`sh "${SCRIPT_FILE}" clean_icon`);
-                } else {
-                    // Fallback if SCRIPT_FILE variable scope issue, but it should be global
-                    await exec(`sh "${MOD_ROOT}/moneticons_plus.sh" clean_icon`);
-                }
+                // 触发 clean 以立即应用更改
+                await exec(`sh "${SCRIPT_FILE}" clean_icon`);
 
                 if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("保存成功");
 
@@ -1754,9 +1703,6 @@
         }
 
         function toggleSelectAll() {
-            const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 960 960" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
-            const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
-
             const iconContainer = document.getElementById('icon-select-all');
             const btnText = document.getElementById('text-select-all');
             const isSelectAll = btnText.innerText === "全选";
@@ -1784,8 +1730,6 @@
         }
 
         async function displayAppList() {
-            const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 960 960" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
-            const ICON_CLOSE_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>`;
             document.getElementById('scan-status').style.display = 'none';
             document.getElementById('app-list-container').style.display = 'block';
             document.getElementById('app-count').innerText = monetApps.length;
@@ -2152,7 +2096,7 @@
                 // Update Select All state
                 const allSelected = monetApps.every(pkg => loadedPkgList.has(pkg));
                 document.getElementById('text-select-all').innerText = allSelected ? "取消全选" : "全选";
-                document.getElementById('icon-select-all').innerHTML = allSelected ? `<svg t="1769164724419" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8888" width="18" height="18" style="fill:currentColor;"><path d="M512 0C229.230769 0 0 229.230769 0 512s229.230769 512 512 512 512-229.230769 512-512S794.769231 0 512 0z m196.923077 659.692308c9.846154 9.846154 9.846154 25.846154 0 35.692308-9.846154 9.846154-25.846154 9.846154-35.692308 0L512 534.153846l-161.230769 161.23077c-9.846154 9.846154-25.846154 9.846154-35.692308 0-9.846154-9.846154-9.846154-25.846154 0-35.692308L476.307692 498.461538 315.076923 337.230769c-9.846154-9.846154-9.846154-25.846154 0-35.692308 9.846154-9.846154 25.846154-9.846154 35.692308 0L512 462.769231l161.230769-161.23077c9.846154-9.846154 25.846154-9.846154 35.692308 0 9.846154 9.846154 9.846154 25.846154 0 35.692308L547.692308 498.461538l161.230769 161.23077z" p-id="8889"></path></svg>` : `<svg t="1769164724419" class="icon" viewBox="0 0 960 960" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
+                document.getElementById('icon-select-all').innerHTML = allSelected ? ICON_CLOSE_SVG : ICON_CHECK_SVG;
             }
 
             closeManualModal();
@@ -2210,9 +2154,7 @@
             }
         }
 
-        // === Path Manager Logic ===
-        // const SCAN_PATHS_SCRIPT = ... (Removed, using SCRIPT_FILE)
-        const ICON_PATH_FILE = `${WEB_ROOT}/icon_path`;
+        // === 路径管理逻辑 ===
         let currentPaths = new Map(); // path -> {count, userAdded}
 
         async function openPathManager() {

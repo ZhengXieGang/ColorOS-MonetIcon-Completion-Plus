@@ -89,18 +89,23 @@ scan_monet() {
         # Update Progress
         write_js "$TOTAL" "$CURRENT" "$FOUND" "$pkg_name" "" "running"
 
-        # Check with AAPT
+        # 使用 AAPT 检查图标
+        if [ ! -f "$AAPT" ]; then
+            continue
+        fi
         output=$("$AAPT" dump badging "$apk_path" 2>/dev/null)
         icon_path=$(echo "$output" | grep "application:" | sed -n "s/.*icon='\([^']*\)'.*/\1/p" | head -n 1)
 
-        if [[ "$icon_path" == *.xml ]]; then
-            if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i -E "monochrome|themed_icon"; then
-                label=$(echo "$output" | grep "application-label:" | head -n 1 | sed "s/.*:'//; s/'.*//")
-                [ -z "$label" ] && label="$pkg_name"
-                echo "${pkg_name}|${label}" >> "$SCAN_RESULT"
-                FOUND=$((FOUND + 1))
-            fi
-        fi
+        case "$icon_path" in
+            *.xml)
+                if "$AAPT" dump xmltree "$apk_path" --file "$icon_path" 2>/dev/null | grep -q -i -E "monochrome|themed_icon"; then
+                    label=$(echo "$output" | grep "application-label:" | head -n 1 | sed "s/.*:'//; s/'.*//")
+                    [ -z "$label" ] && label="$pkg_name"
+                    echo "${pkg_name}|${label}" >> "$SCAN_RESULT"
+                    FOUND=$((FOUND + 1))
+                fi
+                ;;
+        esac
     done < "$TARGET_LIST"
 
     # Final Update
@@ -200,7 +205,7 @@ update() {
     fi
     
     # 3. Update Version
-    if [ ! -z "$NEW_VERSION" ]; then
+    if [ -n "$NEW_VERSION" ]; then
         echo "$NEW_VERSION" > "$VERSION_FILE"
     fi
     
