@@ -17,6 +17,8 @@ AAPT_DIR="${WEB_ROOT}/aapt2"
 # === Environment Setup ===
 mkdir -p "$CACHE_ROOT"
 mkdir -p "$WEB_ROOT"
+chmod 755 "$CACHE_ROOT" 2>/dev/null
+chmod 755 "$WEB_ROOT" 2>/dev/null
 
 # Determine Architecture for AAPT
 ABI=$(getprop ro.product.cpu.abi)
@@ -196,6 +198,12 @@ update() {
              cp -rf "$CACHE_ROOT/uxicons/"* "$TARGET_A"
              cp -rf "$CACHE_ROOT/uxicons/"* "$TARGET_B"
         fi
+        
+        # 修复由于 umask 导致的 700 权限问题，避免挂载后系统无法读取开机动画等文件
+        find "${MOD_ROOT}/my_product" -type d -exec chmod 755 {} + 2>/dev/null
+        find "${MOD_ROOT}/data/oplus" -type d -exec chmod 755 {} + 2>/dev/null
+        find "${MOD_ROOT}/my_product" -type f -exec chmod 644 {} + 2>/dev/null
+        find "${MOD_ROOT}/data/oplus" -type f -exec chmod 644 {} + 2>/dev/null
     fi
     
     # 2. Unzip WebUI

@@ -11,14 +11,14 @@ def create_folders_and_list():
 
     # 1. 检查 icon 文件夹是否存在
     if not os.path.exists(source_dir):
-        print(f"❌ 错误：找不到 'icon' 文件夹！位置：{source_dir}")
+        print(f"错误：找不到 'icon' 文件夹！位置：{source_dir}")
         return
 
     # 2. 创建 uxicons 文件夹
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
-    print(f"🚀 开始处理...")
+    print(f"开始处理...")
     
 
     folder_count = 0
@@ -46,7 +46,13 @@ def create_folders_and_list():
 
 
     print("-" * 30)
-    print(f"🎉 处理完成！新创建文件夹: {folder_count} 个。")
+    print(f"处理完成！新创建文件夹: {folder_count} 个。")
+    
+    # 修复构建出来的文件夹与文件权限为系统环境安全的 755 / 644，防止装到手机时权限受到影响
+    for root, dirs, files in os.walk(target_dir):
+        os.chmod(root, 0o755)
+        for f in files:
+            os.chmod(os.path.join(root, f), 0o644)
 
 if __name__ == "__main__":
     create_folders_and_list()

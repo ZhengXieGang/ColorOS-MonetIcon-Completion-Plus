@@ -1351,6 +1351,7 @@
 
                 await exec(`rm -rf "${CACHE_ROOT}"`);
                 await exec(`mkdir -p "${CACHE_ROOT}"`);
+                await exec(`chmod 755 "${CACHE_ROOT}"`);
 
                 // --- Step 2: Download ---
                 log("=== 步骤 2: 下载文件 ===");
@@ -1514,8 +1515,9 @@
 
             try {
                 // Write to file using printf to avoid shell newline issues
-                // Join with escaped newlines for printf
-                const content = Array.from(loadedPkgList).join('\\n');
+                // Filter packages to prevent shell injection via malicious names containing quotes or backslashes
+                const safePackages = Array.from(loadedPkgList).filter(pkg => /^[a-zA-Z0-9_\.-]+$/.test(pkg));
+                const content = safePackages.join('\\n');
                 await exec(`printf "${content}" > "${PKGLIST_FILE}"`);
 
                 // 触发 clean 以立即应用更改
@@ -1877,6 +1879,7 @@
                 // Ensure scripts executable
                 await exec(`chmod +x "${SCRIPT_FILE}"`);
                 await exec(`mkdir -p "${CACHE_ROOT}"`);
+                await exec(`chmod 755 "${CACHE_ROOT}"`);
 
                 if (fullRefresh) {
                     await exec(`rm -f "${MONET_APPS_FILE}"`);
@@ -2325,6 +2328,11 @@
 
                 if (!input.startsWith('/data/')) {
                     setError("路径必须位于 /data/ 下");
+                    return;
+                }
+
+                if (!/^\/data\/[a-zA-Z0-9_\-\.\/]+$/.test(input)) {
+                    setError("路径包含不允许的特殊字符，请检查");
                     return;
                 }
 
