@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=6 -->
+    <!-- ReleaseCode=7 -->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -1406,11 +1406,11 @@
                 btn.className = "btn btn-tonal";
                 setIndeterminateProgress(false); // Hide progress
 
-                // 稍微延迟后重载
-                await new Promise(r => setTimeout(r, 1000));
-                // Removed alert as requested
-                location.reload();
-
+                // 引导用户进行重启或重载页面
+                setTimeout(() => {
+                    alert("更新已安装，请手动更换一遍图标包让新图标生效。");
+                    location.reload();
+                }, 500);
             } catch (e) {
                 log("更新流程中断: " + e.message, 'error');
                 btn.innerText = "重试";

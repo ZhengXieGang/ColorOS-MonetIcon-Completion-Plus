@@ -204,6 +204,21 @@ update() {
         find "${MOD_ROOT}/data/oplus" -type d -exec chmod 755 {} + 2>/dev/null
         find "${MOD_ROOT}/my_product" -type f -exec chmod 644 {} + 2>/dev/null
         find "${MOD_ROOT}/data/oplus" -type f -exec chmod 644 {} + 2>/dev/null
+        
+        # 修复 SELinux 上下文标签，这是导致新文件即重启也无法被系统读取的核心原因
+        chcon -R u:object_r:system_file:s0 "${MOD_ROOT}/my_product" 2>/dev/null
+        chcon -R u:object_r:system_file:s0 "${MOD_ROOT}/data" 2>/dev/null
+
+        # === 核心热更新修复机制 ===
+        # 将新增加的文件直接写向真实的合并层挂载环境，越出底层不可见的屏障
+        cp -rf "$CACHE_ROOT/uxicons/"* "/data/oplus/uxicons/" 2>/dev/null
+        mount -o rw,remount /my_product 2>/dev/null
+        cp -rf "$CACHE_ROOT/uxicons/"* "/my_product/media/theme/uxicons/hdpi/" 2>/dev/null
+        
+        chmod -R 755 "/data/oplus/uxicons" 2>/dev/null
+        chmod -R 755 "/my_product/media/theme/uxicons/hdpi/" 2>/dev/null
+        chcon -R u:object_r:system_file:s0 "/data/oplus/uxicons" 2>/dev/null
+        chcon -R u:object_r:system_file:s0 "/my_product/media/theme/uxicons/hdpi/" 2>/dev/null
     fi
     
     # 2. Unzip WebUI
