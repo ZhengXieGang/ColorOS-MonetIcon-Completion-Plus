@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ColorOS Native Mono Fix</string>
+    <string name="xposed_description">Fix ColorOS Launcher themed icons for apps with native monochrome adaptive icons.</string>
+</resources>

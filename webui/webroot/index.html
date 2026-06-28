@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=7 -->
+    <!-- ReleaseCode=9 -->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -614,6 +614,91 @@
             opacity: 0.8;
             transform: scale(0.95);
         }
+
+        .native-mono-control {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .native-mono-size-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .native-mono-size-row input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            flex: 1;
+            min-width: 0;
+            height: 40px;
+            margin: 0;
+            background: transparent;
+            outline: none;
+        }
+
+        .native-mono-size-row input[type="range"]::-webkit-slider-runnable-track {
+            height: 16px;
+            border-radius: 999px;
+            background: var(--md-sys-color-surface-variant);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .native-mono-size-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--md-sys-color-primary);
+            border: 3px solid var(--md-sys-color-surface);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+            margin-top: -7px;
+        }
+
+        .native-mono-size-row input[type="range"]::-moz-range-track {
+            height: 16px;
+            border-radius: 999px;
+            background: var(--md-sys-color-surface-variant);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .native-mono-size-row input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--md-sys-color-primary);
+            border: 3px solid var(--md-sys-color-surface);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+
+        .native-mono-size-row input[type="number"] {
+            width: 78px;
+            height: 48px;
+            padding: 0 10px;
+            border-radius: 12px;
+            border: 1px solid var(--md-sys-color-outline);
+            background: var(--md-sys-color-surface-variant);
+            color: var(--md-sys-color-on-surface);
+            box-sizing: border-box;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .native-mono-size-row input[type="number"]:focus {
+            border-color: var(--md-sys-color-primary);
+            background: rgba(208, 188, 255, 0.12);
+        }
+
+        .native-mono-size-row input[type="number"]::-webkit-outer-spin-button,
+        .native-mono-size-row input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     </style>
     <style>
         /* Manual Add Modal Styles */
@@ -845,6 +930,37 @@
             <div style="margin-top:16px;">
                 <button class="btn btn-tonal" onclick="clearTmpCache()">
                     清理缓存文件
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-top:0; font-size:16px; margin-bottom:10px;">修复模块</h3>
+            <p style="font-size:12px; color:var(--md-sys-color-on-surface-variant); margin-bottom:16px;">
+                修复系统原生莫奈图标显示问题
+            </p>
+
+            <div class="native-mono-control">
+                <div>
+                    <span class="setting-label">图标大小</span>
+                </div>
+                <div class="native-mono-size-row">
+                    <input type="range" id="native-mono-normal-range" min="90" max="110" value="90"
+                        oninput="syncNativeMonoPx(this.value)">
+                    <input type="number" id="native-mono-normal-input" min="90" max="110" value="90"
+                        onblur="syncNativeMonoPx(this.value)">
+                </div>
+            </div>
+
+            <div style="margin-top:16px;">
+                <button class="btn btn-tonal" id="native-mono-config-save-btn" onclick="saveNativeMonoFixConfig()">
+                    保存
+                </button>
+                <button class="btn btn-tonal" id="native-mono-install-btn" onclick="confirmInstallNativeMonoFix()">
+                    安装修复模块
+                </button>
+                <button class="btn btn-tonal" onclick="clearLauncherIconCache()">
+                    刷新图标缓存
                 </button>
             </div>
         </div>
@@ -1109,6 +1225,7 @@
         const PKGLIST_FILE = `${WEB_ROOT}/pkglist`;
         const VERSION_FILE = `${WEB_ROOT}/version`;
         const ICON_PATH_FILE = `${WEB_ROOT}/icon_path`;
+        const NATIVE_MONO_FIX_APK = `${WEB_ROOT}/native-mono-fix.apk`;
 
         // --- SVG 图标常量 ---
         const ICON_CHECK_SVG = `<svg t="1769164724419" class="icon" viewBox="0 0 960 960" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="7446" width="18" height="18" preserveAspectRatio="xMidYMid meet" style="fill:currentColor;"><path d="M476.808045 0.000043C213.401753 0.106685-0.031993 213.68973 0 477.074693S213.551052 953.98938 476.94668 954.021373s476.957344-213.412417 477.085315-476.808045A477.010665 477.010665 0 0 0 476.808045 0.000043z m273.761252 353.369671L441.861388 661.853674a43.1901 43.1901 0 0 1-62.023117 0L202.214984 484.251715a43.864079 43.864079 0 1 1 62.033781-62.033782l147.21959 147.21959 277.89897-276.86454a43.861946 43.861946 0 1 1 62.023117 62.033781z m0 0" p-id="7447"></path></svg>`;
@@ -1193,6 +1310,7 @@
 
             checkUpdate();
             refreshTmpCacheSize();
+            loadNativeMonoFixConfig();
         }
 
         async function checkUpdate() {
@@ -1450,6 +1568,149 @@
             await refreshTmpCacheSize();
             log("缓存已清理。", 'success');
             if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast("缓存清理完成");
+        }
+
+        function parseShellKeyValues(text) {
+            const data = {};
+            (text || '').split(/\r?\n/).forEach(line => {
+                const idx = line.indexOf('=');
+                if (idx > 0) {
+                    data[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+                }
+            });
+            return data;
+        }
+
+        let nativeMonoConfigLoadSeq = 0;
+        let nativeMonoConfigSaving = false;
+
+        function clampNativeMonoPx(value) {
+            let px = parseInt(value, 10);
+            const range = document.getElementById('native-mono-normal-range');
+            const min = range ? parseInt(range.min, 10) : 90;
+            const max = range ? parseInt(range.max, 10) : 110;
+            if (!Number.isFinite(px)) px = 90;
+            if (px < min) px = min;
+            if (px > max) px = max;
+            return px;
+        }
+
+        function syncNativeMonoPx(value) {
+            const px = clampNativeMonoPx(value);
+            const range = document.getElementById('native-mono-normal-range');
+            const input = document.getElementById('native-mono-normal-input');
+            if (range) range.value = px;
+            if (input) input.value = px;
+        }
+
+        function setNativeMonoConfigUi(config) {
+            const range = document.getElementById('native-mono-normal-range');
+            const input = document.getElementById('native-mono-normal-input');
+            if (range) {
+                range.min = config.min_normal_px || 90;
+                range.max = config.max_normal_px || 110;
+            }
+            if (input) {
+                input.min = config.min_normal_px || 90;
+                input.max = config.max_normal_px || 110;
+            }
+            syncNativeMonoPx(config.normal_px || 90);
+        }
+
+        async function loadNativeMonoFixConfig() {
+            const loadSeq = ++nativeMonoConfigLoadSeq;
+            const saveBtn = document.getElementById('native-mono-config-save-btn');
+            if (saveBtn) saveBtn.disabled = true;
+            const res = await exec(`sh "${SCRIPT_FILE}" native_mono_fix_get_config`);
+            if (res.errno !== 0) {
+                log(`读取图标大小失败: ${res.stderr || res.stdout || res.errno}`, 'error');
+                if (saveBtn) saveBtn.disabled = false;
+                return;
+            }
+            if (nativeMonoConfigSaving || loadSeq !== nativeMonoConfigLoadSeq) {
+                return;
+            }
+            setNativeMonoConfigUi(parseShellKeyValues(res.stdout));
+            if (saveBtn) saveBtn.disabled = false;
+        }
+
+        async function saveNativeMonoFixConfig() {
+            const btn = document.getElementById('native-mono-config-save-btn');
+            const input = document.getElementById('native-mono-normal-input');
+            const oldText = btn ? btn.innerText : '';
+            const px = clampNativeMonoPx(input ? input.value : 90);
+            syncNativeMonoPx(px);
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '保存中...';
+            }
+            nativeMonoConfigSaving = true;
+            nativeMonoConfigLoadSeq++;
+
+            try {
+                const res = await exec(`sh "${SCRIPT_FILE}" native_mono_fix_set_config "${px}"`);
+                log(res.stdout || '图标大小已保存', res.errno === 0 ? 'success' : 'error');
+                if (res.errno !== 0) throw new Error(res.stderr || res.stdout || '保存失败');
+                if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('图标大小已保存');
+                setNativeMonoConfigUi({ normal_px: px, min_normal_px: 90, max_normal_px: 110 });
+            } catch (e) {
+                showDialog('保存失败', `${e.message}`, false);
+            } finally {
+                nativeMonoConfigSaving = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = oldText || '保存';
+                }
+            }
+        }
+
+        function confirmInstallNativeMonoFix() {
+            showDialog(
+                '安装修复模块',
+                '是否安装修复模块？',
+                true,
+                installNativeMonoFix
+            );
+        }
+
+        async function installNativeMonoFix() {
+            const btn = document.getElementById('native-mono-install-btn');
+            const oldText = btn ? btn.innerText : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '安装中...';
+            }
+
+            try {
+                const installRes = await exec(`sh "${SCRIPT_FILE}" install_native_mono_hook`);
+                log(installRes.stdout || '修复模块安装完成', installRes.errno === 0 ? 'success' : 'error');
+                if (installRes.errno !== 0) throw new Error(installRes.stderr || installRes.stdout || '安装失败');
+
+                if (typeof ksu !== 'undefined' && ksu.toast) ksu.toast('修复模块已安装');
+                showDialog(
+                    '安装完成',
+                    '请在 LSPosed 中启用修复模块。',
+                    false
+                );
+            } catch (e) {
+                log(`安装修复模块失败: ${e.message}`, 'error');
+                showDialog('安装失败', `${e.message}`, false);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = oldText || '安装修复模块';
+                }
+            }
+        }
+
+        async function clearLauncherIconCache() {
+            const res = await exec(`sh "${SCRIPT_FILE}" clear_launcher_icon_cache`);
+            log(res.stdout || '桌面图标缓存已清理', res.errno === 0 ? 'success' : 'error');
+            if (res.errno !== 0) {
+                showDialog('清理失败', `${res.stderr || res.stdout || res.errno}`, false);
+            } else if (typeof ksu !== 'undefined' && ksu.toast) {
+                ksu.toast('桌面图标缓存已清理');
+            }
         }
 
         // === 图标管理功能 ===

@@ -11,6 +11,24 @@ VERSION_FILE="${WEB_ROOT}/version"
 ICON_PATH_FILE="${WEB_ROOT}/icon_path"
 PKGLIST_FILE="${WEB_ROOT}/pkglist"
 BLACKLIST_FILE="${WEB_ROOT}/blacklist"
+NATIVE_MONO_FIX_FILE="${WEB_ROOT}/native_mono_fix_enabled"
+NATIVE_MONO_FIX_APK="${WEB_ROOT}/native-mono-fix.apk"
+NATIVE_MONO_FIX_PACKAGE="com.oplusmonet.nativemonofix"
+NATIVE_MONO_FIX_SETTING="oplus_native_mono_fix_enabled"
+NATIVE_MONO_FIX_PROP="persist.sys.oplusmonet.native_mono_fix"
+NATIVE_MONO_FIX_CONFIG="${WEB_ROOT}/native_mono_fix.conf"
+NATIVE_MONO_FIX_PUBLIC_CONFIG="/data/oplus/uxicons/.native_mono_fix.conf"
+NATIVE_MONO_FIX_MODULE_CONFIG="${MOD_ROOT}/data/oplus/uxicons/.native_mono_fix.conf"
+NATIVE_MONO_SETTING_NORMAL_PX="oplus_native_mono_normal_px"
+NATIVE_MONO_SETTING_MORPH_1X2_PX="oplus_native_mono_morph_1x2_px"
+NATIVE_MONO_SETTING_MORPH_2X1_PX="oplus_native_mono_morph_2x1_px"
+NATIVE_MONO_SETTING_MORPH_2X2_PX="oplus_native_mono_morph_2x2_px"
+NATIVE_MONO_DEFAULT_NORMAL_PX=90
+NATIVE_MONO_MIN_NORMAL_PX=90
+NATIVE_MONO_MAX_NORMAL_PX=110
+NATIVE_MONO_MORPH_1X2_PX=160
+NATIVE_MONO_MORPH_2X1_PX=160
+NATIVE_MONO_MORPH_2X2_PX=320
 
 AAPT_DIR="${WEB_ROOT}/aapt2"
 
@@ -29,6 +47,94 @@ else
 fi
 AAPT="$AAPT_DIR/$AAPT_BIN"
 [ -f "$AAPT" ] && chmod +x "$AAPT"
+
+is_uint() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+clamp_native_mono_normal_px() {
+    value="$1"
+    if ! is_uint "$value"; then
+        value="$NATIVE_MONO_DEFAULT_NORMAL_PX"
+    fi
+    if [ "$value" -lt "$NATIVE_MONO_MIN_NORMAL_PX" ]; then
+        value="$NATIVE_MONO_DEFAULT_NORMAL_PX"
+    fi
+    if [ "$value" -gt "$NATIVE_MONO_MAX_NORMAL_PX" ]; then
+        value="$NATIVE_MONO_MAX_NORMAL_PX"
+    fi
+    echo "$value"
+}
+
+read_native_mono_conf_value() {
+    key="$1"
+    file="$2"
+    [ -f "$file" ] || return
+    sed -n "s/^${key}=//p" "$file" 2>/dev/null | tail -n 1
+}
+
+read_native_mono_normal_px() {
+    value=$(read_native_mono_conf_value "normal_px" "$NATIVE_MONO_FIX_CONFIG")
+    if ! is_uint "$value"; then
+        value=$(read_native_mono_conf_value "normal_px" "$NATIVE_MONO_FIX_MODULE_CONFIG")
+    fi
+    if ! is_uint "$value"; then
+        value=$(read_native_mono_conf_value "normal_px" "$NATIVE_MONO_FIX_PUBLIC_CONFIG")
+    fi
+    if ! is_uint "$value"; then
+        value=$(settings get global "$NATIVE_MONO_SETTING_NORMAL_PX" 2>/dev/null)
+        [ "$value" = "null" ] && value=""
+    fi
+    clamp_native_mono_normal_px "$value"
+}
+
+write_native_mono_config_file() {
+    normal_px=$(clamp_native_mono_normal_px "$1")
+    mkdir -p "$WEB_ROOT" 2>/dev/null
+    {
+        echo "normal_px=${normal_px}"
+        echo "morph_1x2_px=${NATIVE_MONO_MORPH_1X2_PX}"
+        echo "morph_2x1_px=${NATIVE_MONO_MORPH_2X1_PX}"
+        echo "morph_2x2_px=${NATIVE_MONO_MORPH_2X2_PX}"
+    } > "$NATIVE_MONO_FIX_CONFIG" || return 1
+    chmod 644 "$NATIVE_MONO_FIX_CONFIG" 2>/dev/null
+
+    if [ -d "/data/oplus/uxicons" ]; then
+        cp -f "$NATIVE_MONO_FIX_CONFIG" "$NATIVE_MONO_FIX_PUBLIC_CONFIG" 2>/dev/null
+        chmod 644 "$NATIVE_MONO_FIX_PUBLIC_CONFIG" 2>/dev/null
+    fi
+    mkdir -p "${MOD_ROOT}/data/oplus/uxicons" 2>/dev/null
+    cp -f "$NATIVE_MONO_FIX_CONFIG" "$NATIVE_MONO_FIX_MODULE_CONFIG" 2>/dev/null
+    chmod 644 "$NATIVE_MONO_FIX_MODULE_CONFIG" 2>/dev/null
+}
+
+native_mono_fix_get_config() {
+    normal_px=$(read_native_mono_normal_px)
+    write_native_mono_config_file "$normal_px" >/dev/null 2>&1
+
+    echo "min_normal_px=${NATIVE_MONO_MIN_NORMAL_PX}"
+    echo "max_normal_px=${NATIVE_MONO_MAX_NORMAL_PX}"
+    echo "normal_px=${normal_px}"
+}
+
+native_mono_fix_set_config() {
+    normal_px=$(clamp_native_mono_normal_px "$1")
+
+    settings put global "$NATIVE_MONO_SETTING_NORMAL_PX" "$normal_px" 2>/dev/null
+    settings put global "$NATIVE_MONO_SETTING_MORPH_1X2_PX" "$NATIVE_MONO_MORPH_1X2_PX" 2>/dev/null
+    settings put global "$NATIVE_MONO_SETTING_MORPH_2X1_PX" "$NATIVE_MONO_MORPH_2X1_PX" 2>/dev/null
+    settings put global "$NATIVE_MONO_SETTING_MORPH_2X2_PX" "$NATIVE_MONO_MORPH_2X2_PX" 2>/dev/null
+    if ! write_native_mono_config_file "$normal_px"; then
+        echo "错误: 图标大小配置写入失败: ${NATIVE_MONO_FIX_CONFIG}"
+        exit 1
+    fi
+
+    echo ">>> 图标大小已保存。"
+    echo "normal_px=${normal_px}"
+}
 
 scan_monet() {
     SKIP_FILE="$CACHE_ROOT/skip_list.txt"
@@ -170,6 +276,94 @@ clean_icon() {
     echo ">>> 清理完成。"
 }
 
+clear_launcher_icon_cache() {
+    echo ">>> 正在重启桌面并清理图标缓存..."
+    restart_launcher() {
+        am force-stop com.android.launcher >/dev/null 2>&1
+        cmd activity force-stop com.android.launcher >/dev/null 2>&1
+        pid="$(pidof com.android.launcher 2>/dev/null)"
+        if [ -n "$pid" ]; then
+            kill -TERM $pid >/dev/null 2>&1
+            sleep 1
+        fi
+        pid="$(pidof com.android.launcher 2>/dev/null)"
+        if [ -n "$pid" ]; then
+            kill -KILL $pid >/dev/null 2>&1
+        fi
+    }
+
+    restart_launcher
+    rm -f /data/user_de/0/com.android.launcher/databases/app_icons.db* 2>/dev/null
+    rm -f /data/user/0/com.android.launcher/databases/app_icons.db* 2>/dev/null
+    rm -f /data/user_de/0/com.android.launcher/databases/widgetpreviews.db* 2>/dev/null
+    rm -f /data/user/0/com.android.launcher/databases/widgetpreviews.db* 2>/dev/null
+    restart_launcher
+    echo ">>> 图标缓存已清理。"
+}
+
+install_native_mono_hook() {
+    if [ ! -f "$NATIVE_MONO_FIX_APK" ]; then
+        echo "错误: 未找到 ${NATIVE_MONO_FIX_APK}"
+        exit 1
+    fi
+
+    echo ">>> 正在安装原生莫奈图标修复 Hook..."
+    pm install -r "$NATIVE_MONO_FIX_APK"
+    if [ $? -ne 0 ]; then
+        echo "错误: Hook APK 安装失败"
+        exit 1
+    fi
+    echo ">>> Hook APK 已安装。请在 LSPosed 中启用此模块。"
+}
+
+native_mono_fix_status() {
+    enabled="0"
+    installed="0"
+    lsposed="0"
+
+    setting_value=$(settings get system "$NATIVE_MONO_FIX_SETTING" 2>/dev/null | tr -d '\r')
+    prop_value=$(getprop "$NATIVE_MONO_FIX_PROP" 2>/dev/null | tr -d '\r')
+    file_value=""
+    [ -f "$NATIVE_MONO_FIX_FILE" ] && file_value=$(cat "$NATIVE_MONO_FIX_FILE" 2>/dev/null | tr -d '\r')
+
+    if [ "$setting_value" = "1" ] || [ "$prop_value" = "1" ] || [ "$file_value" = "1" ]; then
+        enabled="1"
+    fi
+
+    if pm path "$NATIVE_MONO_FIX_PACKAGE" >/dev/null 2>&1; then
+        installed="1"
+    fi
+
+    if [ -d /data/adb/modules/zygisk_lsposed ] || pgrep -f zygisk_lsposed >/dev/null 2>&1; then
+        lsposed="1"
+    fi
+
+    echo "enabled=${enabled}"
+    echo "installed=${installed}"
+    echo "lsposed=${lsposed}"
+}
+
+native_mono_fix_set() {
+    value="$1"
+    if [ "$value" != "0" ] && [ "$value" != "1" ]; then
+        echo "Usage: $0 native_mono_fix_set {0|1}"
+        exit 1
+    fi
+
+    echo "$value" > "$NATIVE_MONO_FIX_FILE"
+    chmod 644 "$NATIVE_MONO_FIX_FILE" 2>/dev/null
+    settings put system "$NATIVE_MONO_FIX_SETTING" "$value" 2>/dev/null
+    setprop "$NATIVE_MONO_FIX_PROP" "$value" 2>/dev/null
+
+    clear_launcher_icon_cache
+
+    if [ "$value" = "1" ]; then
+        echo ">>> 原生莫奈图标修复已开启。"
+    else
+        echo ">>> 原生莫奈图标修复已关闭。"
+    fi
+}
+
 update() {
     NEW_VERSION="$1"
     
@@ -259,11 +453,29 @@ case "$1" in
     "clean_icon")
         clean_icon
         ;;
+    "clear_launcher_icon_cache")
+        clear_launcher_icon_cache
+        ;;
+    "install_native_mono_hook")
+        install_native_mono_hook
+        ;;
+    "native_mono_fix_status")
+        native_mono_fix_status
+        ;;
+    "native_mono_fix_get_config")
+        native_mono_fix_get_config
+        ;;
+    "native_mono_fix_set_config")
+        native_mono_fix_set_config "$2"
+        ;;
+    "native_mono_fix_set")
+        native_mono_fix_set "$2"
+        ;;
     "update")
         update "$2"
         ;;
     *)
-        echo "Usage: $0 {scan_monet|scan_paths|clean_icon|update <ver>}"
+        echo "Usage: $0 {scan_monet|scan_paths|clean_icon|clear_launcher_icon_cache|install_native_mono_hook|native_mono_fix_status|native_mono_fix_get_config|native_mono_fix_set_config <normal_px>|native_mono_fix_set <0|1>|update <ver>}"
         exit 1
         ;;
 esac

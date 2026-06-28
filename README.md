@@ -4,9 +4,8 @@
 > **说明**：由于模块作者未授权，此项目不提供原模块，欢迎各位 commit 图标。
 
 ## 使用方法
-1. 下载release里的webui.zip。
-2. 将webui.zip的内容放入原模块的目录`data/adb/modules/ThemedIconCompletion`或放入模块文件的压缩包内刷入。
-3. 更新完图标记得在管理器里关掉系统桌面的默认卸载模块，重新更换一次图标包。
+1. 先安装原模块。
+2. 下载 Release 中的 `ColorOS-MonetIcon-Completion-Plus-*.zip` 并刷入。此包只会把 WebUI 和 `action.sh` 写入原模块目录。
 
 ## 适配指南
 

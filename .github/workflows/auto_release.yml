@@ -11,6 +11,10 @@ on:
     paths:
       - 'uxicons/**'       # 监听图标变动
       - 'webui/**'         # 监听 WebUI 变动
+      - 'lsposed-hook/**'  # 监听 LSPosed Hook 变动
+      - 'scripts/**'       # 监听验证脚本变动
+      - 'customize.sh'     # 监听刷入脚本变动
+      - 'action.sh'        # 监听快捷操作脚本变动
     branches:
       - main # 确保你的主分支名正确，有的是 master
 
@@ -22,6 +26,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # 获取完整文件结构
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        run: sdkmanager "platforms;android-36" "build-tools;36.1.0"
 
       - name: Calculate Icon Count & Version
         id: version
@@ -63,6 +79,15 @@ jobs:
 
       - name: Prepare Assets
         run: |
+          # 构建 LSPosed Hook APK，并放入 WebUI 分发目录
+          if [ -d "lsposed-hook" ]; then
+            bash lsposed-hook/build.sh
+            cp -f lsposed-hook/build/native-mono-fix.apk webui/webroot/native-mono-fix.apk
+          else
+            echo "Error: lsposed-hook directory missing!"
+            exit 1
+          fi
+
           # 压缩图标包
           if [ -d "uxicons" ]; then
             zip -r uxicons.zip uxicons
@@ -81,6 +106,14 @@ jobs:
             exit 1
           fi
 
+          # 生成可直接刷入的伴生包：只写入原模块的 WebUI 和 action.sh
+          MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${{ steps.version.outputs.VERSION_TAG }}.zip"
+          test ! -e module.prop
+          test ! -e post-fs-data.sh
+          test ! -e service.sh
+          zip -r "$MODULE_ZIP" customize.sh action.sh webui
+          echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -90,6 +123,7 @@ jobs:
           files: |
             uxicons.zip
             webui.zip
+            ${{ env.MODULE_ZIP }}
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
