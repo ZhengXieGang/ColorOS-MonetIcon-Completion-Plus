@@ -13,9 +13,10 @@ abort_install() {
   abort "安装失败: $1"
 }
 
-extract_path() {
-  path="$1"
-  unzip -o "$ZIPFILE" "$path" -d "$MODPATH" >&2 || abort_install "解压 ${path} 失败"
+extract_package() {
+  # Some Android unzip implementations do not expand archive member globs.
+  # The companion archive contains only this installer, action.sh, and webui/.
+  unzip -o "$ZIPFILE" -d "$MODPATH" >&2 || abort_install "解压伴生包失败"
 }
 
 copy_path() {
@@ -31,8 +32,7 @@ on_install() {
   [ -d "$TARGET_MODULE_DIR" ] || abort_install "未找到 ${TARGET_MODULE_DIR}，请先安装原模块"
 
   ui_print "- 解压 WebUI 和 action.sh"
-  extract_path "webui/*"
-  extract_path "action.sh"
+  extract_package
 
   ui_print "- 复制到原模块目录"
   mkdir -p "$TARGET_MODULE_DIR/webroot"

@@ -11,6 +11,9 @@ VERSION_FILE="${WEB_ROOT}/version"
 ICON_PATH_FILE="${WEB_ROOT}/icon_path"
 PKGLIST_FILE="${WEB_ROOT}/pkglist"
 BLACKLIST_FILE="${WEB_ROOT}/blacklist"
+LAUNCHER_PACKAGE="com.android.launcher"
+LAUNCHER_USER_ID="0"
+LAUNCHER_DATA_DIR="/data/user_de/${LAUNCHER_USER_ID}/${LAUNCHER_PACKAGE}"
 NATIVE_MONO_FIX_FILE="${WEB_ROOT}/native_mono_fix_enabled"
 NATIVE_MONO_FIX_APK="${WEB_ROOT}/native-mono-fix.apk"
 NATIVE_MONO_FIX_PACKAGE="com.oplusmonet.nativemonofix"
@@ -278,27 +281,65 @@ clean_icon() {
 
 clear_launcher_icon_cache() {
     echo ">>> 正在重启桌面并清理图标缓存..."
-    restart_launcher() {
-        am force-stop com.android.launcher >/dev/null 2>&1
-        cmd activity force-stop com.android.launcher >/dev/null 2>&1
-        pid="$(pidof com.android.launcher 2>/dev/null)"
+
+    stop_launcher() {
+        am force-stop "$LAUNCHER_PACKAGE" >/dev/null 2>&1
+        cmd activity force-stop "$LAUNCHER_PACKAGE" >/dev/null 2>&1
+
+        attempt=0
+        while [ "$attempt" -lt 10 ]; do
+            pid="$(pidof "$LAUNCHER_PACKAGE" 2>/dev/null)"
+            [ -z "$pid" ] && return 0
+            for launcher_pid in $pid; do
+                kill -TERM "$launcher_pid" >/dev/null 2>&1
+            done
+            sleep 1
+            attempt=$((attempt + 1))
+        done
+
+        pid="$(pidof "$LAUNCHER_PACKAGE" 2>/dev/null)"
         if [ -n "$pid" ]; then
-            kill -TERM $pid >/dev/null 2>&1
+            for launcher_pid in $pid; do
+                kill -KILL "$launcher_pid" >/dev/null 2>&1
+            done
             sleep 1
         fi
-        pid="$(pidof com.android.launcher 2>/dev/null)"
-        if [ -n "$pid" ]; then
-            kill -KILL $pid >/dev/null 2>&1
-        fi
+
+        [ -z "$(pidof "$LAUNCHER_PACKAGE" 2>/dev/null)" ]
     }
 
-    restart_launcher
-    rm -f /data/user_de/0/com.android.launcher/databases/app_icons.db* 2>/dev/null
-    rm -f /data/user/0/com.android.launcher/databases/app_icons.db* 2>/dev/null
-    rm -f /data/user_de/0/com.android.launcher/databases/widgetpreviews.db* 2>/dev/null
-    rm -f /data/user/0/com.android.launcher/databases/widgetpreviews.db* 2>/dev/null
-    restart_launcher
-    echo ">>> 图标缓存已清理。"
+    start_launcher() {
+        am start --user "$LAUNCHER_USER_ID" \
+            -a android.intent.action.MAIN \
+            -c android.intent.category.HOME >/dev/null 2>&1
+
+        attempt=0
+        while [ "$attempt" -lt 20 ]; do
+            pidof "$LAUNCHER_PACKAGE" >/dev/null 2>&1 && return 0
+            sleep 1
+            attempt=$((attempt + 1))
+        done
+        return 1
+    }
+
+    if ! stop_launcher; then
+        echo "错误: 无法停止桌面进程。"
+        return 1
+    fi
+
+    rm -f \
+        "$LAUNCHER_DATA_DIR/databases/app_icons.db"* \
+        "$LAUNCHER_DATA_DIR/databases/widgetpreviews.db"* \
+        "/data/user/0/${LAUNCHER_PACKAGE}/databases/app_icons.db"* \
+        "/data/user/0/${LAUNCHER_PACKAGE}/databases/widgetpreviews.db"* \
+        2>/dev/null
+
+    if ! start_launcher; then
+        echo "错误: 桌面进程未能重新启动。"
+        return 1
+    fi
+
+    echo ">>> 图标缓存已清理，桌面已重新启动。"
 }
 
 install_native_mono_hook() {

@@ -27,7 +27,6 @@ cat "$TMP_LOG" >> "$LOG_FILE"
 rm -f "$TMP_LOG"
 
 if [ "$rc" -eq 0 ]; then
-    am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1
     log "manual icon cache refresh finished"
     echo ">>> 图标缓存刷新完成。"
 else
