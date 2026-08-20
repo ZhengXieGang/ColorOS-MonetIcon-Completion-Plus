@@ -110,7 +110,7 @@ jobs:
           MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${{ steps.version.outputs.VERSION_TAG }}.zip"
           test ! -e post-fs-data.sh
           test ! -e service.sh
-          zip -r "$MODULE_ZIP" module.prop customize.sh action.sh webui
+          zip -r "$MODULE_ZIP" module.prop customize.sh install.sh common action.sh webui
           echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
 
       - name: Create Release
