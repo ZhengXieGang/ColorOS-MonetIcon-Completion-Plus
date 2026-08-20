@@ -108,10 +108,9 @@ jobs:
 
           # 生成可直接刷入的伴生包：只写入原模块的 WebUI 和 action.sh
           MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${{ steps.version.outputs.VERSION_TAG }}.zip"
-          test ! -e module.prop
           test ! -e post-fs-data.sh
           test ! -e service.sh
-          zip -r "$MODULE_ZIP" customize.sh action.sh webui
+          zip -r "$MODULE_ZIP" module.prop customize.sh action.sh webui
           echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
 
       - name: Create Release
