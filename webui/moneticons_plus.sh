@@ -396,8 +396,6 @@ native_mono_fix_set() {
     settings put system "$NATIVE_MONO_FIX_SETTING" "$value" 2>/dev/null
     setprop "$NATIVE_MONO_FIX_PROP" "$value" 2>/dev/null
 
-    clear_launcher_icon_cache
-
     if [ "$value" = "1" ]; then
         echo ">>> 原生莫奈图标修复已开启。"
     else
