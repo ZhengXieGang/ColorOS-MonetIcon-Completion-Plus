@@ -4,3 +4,4 @@ module/
 lsposed-hook/build/
 lsposed-hook/libs/
 lsposed-hook/signing/
+__pycache__/

@@ -5,15 +5,15 @@
 
 ## 使用方法
 1. 先安装原模块。
-2. 下载 Release 中的 `ColorOS-MonetIcon-Completion-Plus-*.zip` 并刷入。此包只会把 WebUI 和 `action.sh` 写入原模块目录。
+2. 下载正式 Release 中的 `ColorOS-MonetIcon-Completion-Plus-v1.x.zip` 并刷入。此包只会把 WebUI 和 `action.sh` 写入原模块目录。
 
 ## 适配指南
 
 1.  **准备环境**
-    创建一个文件夹，将仓库内的两个py脚本放入，同时在文件夹内创建名为 `icon` 的文件夹，放置原始图标文件（**注意**：需将原图标文件名更改成**包名**，文件后缀无所谓）。
+    创建一个文件夹，将 `scripts/create_icon_dirs.py` 和 `scripts/process_icons.py` 放入，同时在文件夹内创建名为 `icon` 的文件夹，放置原始图标文件（**注意**：需将原图标文件名更改成**包名**，文件后缀无所谓）。
 
 2.  **生成目录**
-    运行 `mkdir.py`。
+    运行 `create_icon_dirs.py`。
     * 脚本会自动根据 `icon` 文件夹内的文件名，在当前目录下创建 `uxicons` 文件夹并创建包名目录。
 
 3.  **处理图标**
@@ -22,12 +22,12 @@
     * 脚本会将 `uxicons` 文件夹内的文件根据大小分别命名为 `monochrome.png` `monochrome_1x2.png`...等等。
     
 4.  **提交请求**
-    * Fork本仓库，将本地`uxicon`文件夹中的内容上传到自己Fork后仓库中的`uxicon`文件夹中。
+    * Fork本仓库，将本地 `uxicons` 文件夹中的内容上传到自己 Fork 后仓库中的 `uxicons` 文件夹中。
     * 提交pull request,合并后会自动Release新版本。
 
 ## 图标规范
 
-* **参考文件**：图标可参考 `icons.psd`。
+* **参考文件**：图标可参考 `assets/icon-template.psd`。
 * **尺寸标准**：以1x1大小图标为例，画布大小为 **240x240** 像素，图标本体取最长一边，调整为 **90** 像素后居中（可按图标实际情况进行适当修改）。
 <img width="100%" alt="未标题-1" src="https://github.com/user-attachments/assets/9ac7fa20-aee9-4c9c-970f-c3d5199741a7" />
 

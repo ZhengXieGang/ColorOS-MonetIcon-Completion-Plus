@@ -29,7 +29,7 @@ jobs:
 
       # 4. 运行 Python 脚本
       - name: Run processing script
-        run: python process_icons.py
+        run: python scripts/process_icons.py
 
       # 5.强制删除非标准命名的文件
       - name: Cleanup non-standard files
