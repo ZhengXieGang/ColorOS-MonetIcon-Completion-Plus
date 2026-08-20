@@ -10,11 +10,8 @@ on:
   push:
     paths:
       - 'uxicons/**'       # 监听图标变动
-      - 'webui/**'         # 监听 WebUI 变动
+      - 'module/webui/**'  # 监听 WebUI 变动
       - 'lsposed-hook/**'  # 监听 LSPosed Hook 变动
-      - 'scripts/**'       # 监听验证脚本变动
-      - 'customize.sh'     # 监听刷入脚本变动
-      - 'action.sh'        # 监听快捷操作脚本变动
     branches:
       - main # 确保你的主分支名正确，有的是 master
 
@@ -57,8 +54,8 @@ jobs:
              COUNT=0
           fi
           
-          # WebUI 版本: 读取 webui/webroot/index.html 中的 <!-- ReleaseCode=X -->
-          WEBUI_VER=$(grep -o "ReleaseCode=[0-9]\+" webui/webroot/index.html | cut -d= -f2)
+          # WebUI 版本: 读取 module/webui/webroot/index.html 中的 <!-- ReleaseCode=X -->
+          WEBUI_VER=$(grep -o "ReleaseCode=[0-9]\+" module/webui/webroot/index.html | cut -d= -f2)
           
           # 缺省值处理
           if [ -z "$WEBUI_VER" ]; then
@@ -82,7 +79,7 @@ jobs:
           # 构建 LSPosed Hook APK，并放入 WebUI 分发目录
           if [ -d "lsposed-hook" ]; then
             bash lsposed-hook/build.sh
-            cp -f lsposed-hook/build/native-mono-fix.apk webui/webroot/native-mono-fix.apk
+            cp -f lsposed-hook/build/native-mono-fix.apk module/webui/webroot/native-mono-fix.apk
           else
             echo "Error: lsposed-hook directory missing!"
             exit 1
@@ -97,10 +94,9 @@ jobs:
           fi
           
           # 准备 WebUI
-          if [ -d "webui" ]; then
-            cd webui
-            zip -r ../webui.zip .
-            cd ..
+          if [ -d "module/webui" ]; then
+            cd module/webui
+            zip -r ../../webui.zip .
           else
             echo "Error: webui directory missing!"
             exit 1
@@ -123,14 +119,14 @@ jobs:
         run: |
           # 列出 uxicons 下的文件夹名称，排序并去重
           if [ -d "uxicons" ]; then
-            ls -1 -d uxicons/*/ | xargs -n 1 basename | sort | uniq > metadata/packages.txt
+            ls -1 -d uxicons/*/ | xargs -n 1 basename | sort | uniq > module/packages.txt
           else
             echo "uxicons dir missing, clearing package list"
-            > metadata/packages.txt
+            > module/packages.txt
           fi
           
           # 检查是否有变动
-          if git diff --quiet metadata/packages.txt; then
+          if git diff --quiet module/packages.txt; then
             echo "package list is up to date"
           else
             echo "Updating package list..."
@@ -139,7 +135,7 @@ jobs:
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             
             # 提交并推送
-            git add metadata/packages.txt
+            git add module/packages.txt
             git commit -m "chore: auto update package list"
             git push
           fi

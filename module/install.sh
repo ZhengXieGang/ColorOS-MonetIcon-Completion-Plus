@@ -1,3 +1,5 @@
+#!/system/bin/sh
+
 TARGET_MODULE_ID="ThemedIconCompletion"
 TARGET_MODULE_DIR="/data/adb/modules/${TARGET_MODULE_ID}"
 
@@ -47,5 +49,5 @@ set_permissions() {
   set_perm "$TARGET_MODULE_DIR/moneticons_plus.sh" 0 0 0755
   set_perm "$TARGET_MODULE_DIR/action.sh" 0 0 0755
 
-  rm -rf "$MODPATH/action.sh" "$MODPATH/webui" "$MODPATH/common" "$MODPATH/install.sh"
+  rm -rf "$MODPATH/action.sh" "$MODPATH/webui" "$MODPATH/install.sh"
 }

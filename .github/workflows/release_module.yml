@@ -30,16 +30,17 @@ jobs:
       - name: Validate version
         run: |
           VERSION_TAG="${GITHUB_REF_NAME}"
-          MODULE_VERSION="$(sed -n 's/^version=//p' module.prop)"
+          MODULE_VERSION="$(sed -n 's/^version=//p' module/module.prop)"
           printf '%s\n' "$VERSION_TAG" | grep -Eq '^v1\.[0-9]+$'
           test "$MODULE_VERSION" = "$VERSION_TAG"
 
       - name: Build module package
         run: |
           bash lsposed-hook/build.sh
-          cp -f lsposed-hook/build/native-mono-fix.apk webui/webroot/native-mono-fix.apk
+          cp -f lsposed-hook/build/native-mono-fix.apk module/webui/webroot/native-mono-fix.apk
           MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${GITHUB_REF_NAME}.zip"
-          zip -r "$MODULE_ZIP" module.prop customize.sh install.sh common action.sh webui
+          cd module
+          zip -r "../$MODULE_ZIP" module.prop customize.sh install.sh action.sh webui
           echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
 
       - name: Create release
