@@ -4,3 +4,4 @@ lsposed-hook/build/
 lsposed-hook/libs/
 lsposed-hook/signing/
 __pycache__/
+scripts/verify-native-mono-fix.sh
