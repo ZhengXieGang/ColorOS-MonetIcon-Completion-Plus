@@ -1,0 +1,54 @@
+name: Formal Module Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v1.*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        run: sdkmanager "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Validate version
+        run: |
+          VERSION_TAG="${GITHUB_REF_NAME}"
+          MODULE_VERSION="$(sed -n 's/^version=//p' module.prop)"
+          printf '%s\n' "$VERSION_TAG" | grep -Eq '^v1\.[0-9]+$'
+          test "$MODULE_VERSION" = "$VERSION_TAG"
+
+      - name: Build module package
+        run: |
+          bash lsposed-hook/build.sh
+          cp -f lsposed-hook/build/native-mono-fix.apk webui/webroot/native-mono-fix.apk
+          MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${GITHUB_REF_NAME}.zip"
+          zip -r "$MODULE_ZIP" module.prop customize.sh install.sh common action.sh webui
+          echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ""
+          files: ${{ env.MODULE_ZIP }}
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -46,7 +46,7 @@ jobs:
           echo "=== Debug: Listing directory content ==="
           ls -R uxicons || echo "Warning: uxicons directory not found"
 
-          # 格式: v0.{图标数}.{WebUI版本}
+          # 预发布在线资源格式: v0.{图标数}.{WebUI版本}
           
           # 图标计数 (去除前导零)
           if [ -d "uxicons" ]; then
@@ -106,13 +106,6 @@ jobs:
             exit 1
           fi
 
-          # 生成可直接刷入的伴生包：只写入原模块的 WebUI 和 action.sh
-          MODULE_ZIP="ColorOS-MonetIcon-Completion-Plus-${{ steps.version.outputs.VERSION_TAG }}.zip"
-          test ! -e post-fs-data.sh
-          test ! -e service.sh
-          zip -r "$MODULE_ZIP" module.prop customize.sh install.sh common action.sh webui
-          echo "MODULE_ZIP=$MODULE_ZIP" >> "$GITHUB_ENV"
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -122,7 +115,6 @@ jobs:
           files: |
             uxicons.zip
             webui.zip
-            ${{ env.MODULE_ZIP }}
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <!-- ReleaseCode=12 -->
+    <!-- ReleaseCode=13 -->
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -1238,6 +1238,19 @@
 
         let currentCloudVersion = null;
         let currentLocalVersion = null;
+
+        function parseUpdateVersion(version) {
+            const match = /^v0\.(\d+)\.(\d+)$/.exec(version);
+            return match ? [Number(match[1]), Number(match[2])] : null;
+        }
+
+        function compareUpdateVersions(left, right) {
+            const leftParts = parseUpdateVersion(left);
+            const rightParts = parseUpdateVersion(right);
+            if (!leftParts || !rightParts) return 0;
+            if (leftParts[0] !== rightParts[0]) return leftParts[0] - rightParts[0];
+            return leftParts[1] - rightParts[1];
+        }
         let downloadAssets = {}; // 存储 url
         let loadedPkgList = new Set(); // Stores package names
         let scannedApps = []; // Stores scanned apps
@@ -1336,7 +1349,9 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const releases = await response.json();
-                const latest = releases.find(r => r.tag_name.startsWith("v0."));
+                const latest = releases
+                    .filter(r => r.prerelease && parseUpdateVersion(r.tag_name))
+                    .sort((a, b) => compareUpdateVersions(b.tag_name, a.tag_name))[0];
 
                 if (!latest) throw new Error("无有效Release");
 
@@ -1390,11 +1405,8 @@
             const iconEl = document.getElementById('v-status-icon');
             const btn = document.getElementById('update-btn');
 
-            // 去掉 v 前缀比较
-            const localClean = currentLocalVersion.replace(/^v/, '');
-            const cloudClean = currentCloudVersion.replace(/^v/, '');
-
-            if (currentLocalVersion === currentCloudVersion) {
+            const hasLocalUpdateVersion = Boolean(parseUpdateVersion(currentLocalVersion));
+            if (hasLocalUpdateVersion && compareUpdateVersions(currentLocalVersion, currentCloudVersion) >= 0) {
                 statusText.innerText = "已是最新版";
                 statusText.style.color = "var(--md-sys-color-success)";
                 detailText.innerText = `本地版本: ${currentLocalVersion}`;
@@ -1436,8 +1448,10 @@
         function updateButtonState() {
             const btn = document.getElementById('update-btn');
             btn.disabled = false;
-            btn.innerText = (currentLocalVersion === currentCloudVersion) ? "再次更新" : "立即更新";
-            btn.className = (currentLocalVersion === currentCloudVersion) ? "btn btn-tonal" : "btn btn-primary";
+            const isCurrent = Boolean(parseUpdateVersion(currentLocalVersion))
+                && compareUpdateVersions(currentLocalVersion, currentCloudVersion) >= 0;
+            btn.innerText = isCurrent ? "再次更新" : "立即更新";
+            btn.className = isCurrent ? "btn btn-tonal" : "btn btn-primary";
         }
 
         async function startUpdate() {
